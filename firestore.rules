@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ドメイン制限付き認証チェック
+    function isAuthenticated() {
+      return request.auth != null
+        && request.auth.token.email.matches('.*@saiproducts\\.co\\.jp');
+    }
+
+    // 顧客コレクション
+    match /Customers/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 商談コレクション
+    match /Deals/{dealId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 寺院コレクション
+    match /Temples/{templeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 関係性コレクション
+    match /Relationships/{relationshipId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 活動履歴コレクション
+    match /Activities/{activityId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
