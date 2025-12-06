@@ -1,101 +1,439 @@
-import { Box, Card, CardContent, Typography, Grid } from '@mui/material';
+import { useState, useEffect } from 'react';
 import {
-  People as PeopleIcon,
-  TrendingUp as TrendingUpIcon,
-  Assignment as AssignmentIcon,
+    Grid,
+    Card,
+    CardContent,
+    Typography,
+    Box,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+} from '@mui/material';
+import {
+    TrendingUp as TrendingUpIcon,
+    Receipt as ReceiptIcon,
+    AccountBalance as AccountBalanceIcon,
+    LocationOn as LocationOnIcon,
+    Category as CategoryIcon,
 } from '@mui/icons-material';
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    BarElement,
+    ArcElement,
+    Title,
+    Tooltip,
+    Legend,
+    TooltipItem,
+} from 'chart.js';
+import { Bar, Pie } from 'react-chartjs-2';
+import {
+    parseSalesCSV,
+    calculateDashboardSummary,
+    formatCurrency,
+    formatPercent,
+    type SalesDashboardSummary,
+} from '../api/sales';
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-}
+// Chart.js登録
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    BarElement,
+    ArcElement,
+    Title,
+    Tooltip,
+    Legend
+);
 
-function StatCard({ title, value, icon, color }: StatCardProps) {
-  return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Box
-            sx={{
-              bgcolor: `${color}.light`,
-              color: `${color}.main`,
-              p: 1,
-              borderRadius: 1,
-              mr: 2,
-            }}
-          >
-            {icon}
-          </Box>
-          <Typography variant="h6" color="text.secondary">
-            {title}
-          </Typography>
-        </Box>
-        <Typography variant="h4" component="div">
-          {value}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
+// 売上CSVデータ（ビルド時に埋め込み）
+import salesCSVData from '../data/salesData';
 
 export function Dashboard() {
-  // TODO: Firestoreから実際のデータを取得
-  const stats = {
-    customers: 13673,
-    deals: 1250,
-    revenue: '¥1,450,509,375',
-  };
+    const [salesSummary, setSalesSummary] = useState<SalesDashboardSummary | null>(null);
 
-  return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        ダッシュボード
-      </Typography>
+    // 売上データを解析
+    useEffect(() => {
+        try {
+            const records = parseSalesCSV(salesCSVData);
+            const summary = calculateDashboardSummary(records);
+            setSalesSummary(summary);
+            console.log(`[Dashboard] Sales data loaded: ${records.length} records`);
+        } catch (err) {
+            console.error('[Dashboard] Failed to parse sales data:', err);
+        }
+    }, []);
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            title="顧客数"
-            value={stats.customers.toLocaleString()}
-            icon={<PeopleIcon />}
-            color="primary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            title="商談数"
-            value={stats.deals.toLocaleString()}
-            icon={<AssignmentIcon />}
-            color="secondary"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            title="総申込額"
-            value={stats.revenue}
-            icon={<TrendingUpIcon />}
-            color="success"
-          />
-        </Grid>
-      </Grid>
+    // 月次推移グラフデータ
+    const monthlyChartData = salesSummary?.monthlyData ? {
+        labels: salesSummary.monthlyData.map(d => d.month.replace('年', '/').replace('月', '')),
+        datasets: [
+            {
+                label: '申込額',
+                data: salesSummary.monthlyData.map(d => d.applicationAmount),
+                backgroundColor: 'rgba(25, 118, 210, 0.7)',
+                borderColor: 'rgba(25, 118, 210, 1)',
+                borderWidth: 1,
+            },
+            {
+                label: '入金額',
+                data: salesSummary.monthlyData.map(d => d.paymentAmount),
+                backgroundColor: 'rgba(76, 175, 80, 0.7)',
+                borderColor: 'rgba(76, 175, 80, 1)',
+                borderWidth: 1,
+            },
+        ],
+    } : null;
 
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          システム情報
-        </Typography>
-        <Card>
-          <CardContent>
-            <Typography variant="body2" color="text.secondary">
-              CRM V12 - Firebase Hosting + Firestore + Algolia
+    // 大分類別円グラフデータ
+    const categoryColors = [
+        'rgba(25, 118, 210, 0.8)',
+        'rgba(76, 175, 80, 0.8)',
+        'rgba(255, 152, 0, 0.8)',
+        'rgba(156, 39, 176, 0.8)',
+        'rgba(244, 67, 54, 0.8)',
+        'rgba(0, 188, 212, 0.8)',
+    ];
+
+    const categoryPieData = salesSummary?.byMainCategory ? {
+        labels: salesSummary.byMainCategory.map(d => d.category),
+        datasets: [{
+            data: salesSummary.byMainCategory.map(d => d.applicationAmount),
+            backgroundColor: categoryColors.slice(0, salesSummary.byMainCategory.length),
+            borderWidth: 1,
+        }],
+    } : null;
+
+    // エリア別棒グラフデータ
+    const areaChartData = salesSummary?.byArea ? {
+        labels: salesSummary.byArea.map(d => d.area),
+        datasets: [
+            {
+                label: '申込額',
+                data: salesSummary.byArea.map(d => d.applicationAmount),
+                backgroundColor: 'rgba(25, 118, 210, 0.7)',
+            },
+            {
+                label: '入金額',
+                data: salesSummary.byArea.map(d => d.paymentAmount),
+                backgroundColor: 'rgba(76, 175, 80, 0.7)',
+            },
+        ],
+    } : null;
+
+    // 寺院別棒グラフデータ（上位10件）
+    const templeChartData = salesSummary?.byTemple ? {
+        labels: salesSummary.byTemple.slice(0, 10).map(d =>
+            d.templeName.length > 8 ? d.templeName.substring(0, 8) + '...' : d.templeName
+        ),
+        datasets: [{
+            label: '申込額',
+            data: salesSummary.byTemple.slice(0, 10).map(d => d.applicationAmount),
+            backgroundColor: 'rgba(156, 39, 176, 0.7)',
+            borderColor: 'rgba(156, 39, 176, 1)',
+            borderWidth: 1,
+        }],
+    } : null;
+
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom' as const,
+                labels: { font: { size: 11 } },
+            },
+        },
+        scales: {
+            y: {
+                ticks: {
+                    callback: (value: number | string) => {
+                        const num = typeof value === 'number' ? value : parseFloat(value);
+                        if (num >= 1000000) return `${(num / 1000000).toFixed(0)}M`;
+                        if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
+                        return num;
+                    },
+                },
+            },
+        },
+    };
+
+    const pieOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right' as const,
+                labels: { font: { size: 11 } },
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context: TooltipItem<'pie'>) => {
+                        const value = context.raw as number;
+                        return `${context.label}: ¥${value.toLocaleString()}`;
+                    },
+                },
+            },
+        },
+    };
+
+    return (
+        <Box>
+            <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+                売上管理ダッシュボード
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              V9からの移行版 - 高速検索・完全URL制御対応
-            </Typography>
-          </CardContent>
-        </Card>
-      </Box>
-    </Box>
-  );
+
+            {/* サマリーカード */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                {/* 総申込額 */}
+                <Grid item xs={6} md={3}>
+                    <Card>
+                        <CardContent sx={{ py: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <TrendingUpIcon color="primary" fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" color="text.secondary">総申込額</Typography>
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                                {salesSummary ? formatCurrency(salesSummary.totalApplicationAmount) : '-'}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 総入金額 */}
+                <Grid item xs={6} md={3}>
+                    <Card>
+                        <CardContent sx={{ py: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <AccountBalanceIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" color="text.secondary">総入金額</Typography>
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                                {salesSummary ? formatCurrency(salesSummary.totalPaymentAmount) : '-'}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 契約件数 */}
+                <Grid item xs={6} md={3}>
+                    <Card>
+                        <CardContent sx={{ py: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <ReceiptIcon color="info" fontSize="small" sx={{ mr: 0.5 }} />
+                                <Typography variant="body2" color="text.secondary">契約件数</Typography>
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                                {salesSummary ? salesSummary.contractCount.toLocaleString() : '-'}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 入金率 */}
+                <Grid item xs={6} md={3}>
+                    <Card>
+                        <CardContent sx={{ py: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary">入金率</Typography>
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600, color: 'success.main' }}>
+                                {salesSummary ? formatPercent(salesSummary.paymentRate) : '-'}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            {/* グラフセクション */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                {/* 月次推移グラフ */}
+                <Grid item xs={12} md={8}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2 }}>月次推移</Typography>
+                            <Box sx={{ height: 300 }}>
+                                {monthlyChartData ? (
+                                    <Bar data={monthlyChartData} options={chartOptions} />
+                                ) : (
+                                    <Typography color="text.secondary">データなし</Typography>
+                                )}
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 大分類別円グラフ */}
+                <Grid item xs={12} md={4}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                <CategoryIcon fontSize="small" sx={{ mr: 1 }} />
+                                <Typography variant="h6">大分類別構成比</Typography>
+                            </Box>
+                            <Box sx={{ height: 300 }}>
+                                {categoryPieData ? (
+                                    <Pie data={categoryPieData} options={pieOptions} />
+                                ) : (
+                                    <Typography color="text.secondary">データなし</Typography>
+                                )}
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                {/* エリア別グラフ */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                <LocationOnIcon fontSize="small" sx={{ mr: 1 }} />
+                                <Typography variant="h6">エリア別売上</Typography>
+                            </Box>
+                            <Box sx={{ height: 280 }}>
+                                {areaChartData ? (
+                                    <Bar data={areaChartData} options={chartOptions} />
+                                ) : (
+                                    <Typography color="text.secondary">データなし</Typography>
+                                )}
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 寺院別グラフ */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                <AccountBalanceIcon fontSize="small" sx={{ mr: 1 }} />
+                                <Typography variant="h6">寺院別売上 TOP10</Typography>
+                            </Box>
+                            <Box sx={{ height: 280 }}>
+                                {templeChartData ? (
+                                    <Bar
+                                        data={templeChartData}
+                                        options={{
+                                            ...chartOptions,
+                                            indexAxis: 'y' as const,
+                                        }}
+                                    />
+                                ) : (
+                                    <Typography color="text.secondary">データなし</Typography>
+                                )}
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            {/* テーブルセクション */}
+            <Grid container spacing={2}>
+                {/* 月次推移テーブル */}
+                <Grid item xs={12} md={4}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2 }}>月次推移（詳細）</Typography>
+                            {salesSummary?.monthlyData ? (
+                                <TableContainer sx={{ maxHeight: 300 }}>
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>月</TableCell>
+                                                <TableCell align="right">申込額</TableCell>
+                                                <TableCell align="right">入金額</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {salesSummary.monthlyData.map((row) => (
+                                                <TableRow key={row.month} hover>
+                                                    <TableCell>{row.month}</TableCell>
+                                                    <TableCell align="right">{formatCurrency(row.applicationAmount)}</TableCell>
+                                                    <TableCell align="right">{formatCurrency(row.paymentAmount)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography color="text.secondary">データなし</Typography>
+                            )}
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 寺院別年間売上テーブル */}
+                <Grid item xs={12} md={4}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2 }}>寺院別年間売上</Typography>
+                            {salesSummary?.byTemple ? (
+                                <TableContainer sx={{ maxHeight: 300 }}>
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>寺院名</TableCell>
+                                                <TableCell align="right">申込額</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {salesSummary.byTemple.slice(0, 15).map((row) => (
+                                                <TableRow key={row.templeName} hover>
+                                                    <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {row.templeName}
+                                                    </TableCell>
+                                                    <TableCell align="right">{formatCurrency(row.applicationAmount)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography color="text.secondary">データなし</Typography>
+                            )}
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* 分類別（小分類）テーブル */}
+                <Grid item xs={12} md={4}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" sx={{ mb: 2 }}>分類別(小分類)</Typography>
+                            {salesSummary?.bySubCategory ? (
+                                <TableContainer sx={{ maxHeight: 300 }}>
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>分類</TableCell>
+                                                <TableCell align="right">申込額</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {salesSummary.bySubCategory.slice(0, 10).map((row) => (
+                                                <TableRow key={row.category} hover>
+                                                    <TableCell sx={{ fontSize: '0.8rem' }}>{row.category}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: '0.8rem' }}>
+                                                        {formatCurrency(row.applicationAmount)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography color="text.secondary">データなし</Typography>
+                            )}
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+        </Box>
+    );
 }
