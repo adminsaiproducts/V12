@@ -31,6 +31,7 @@ import {
   extractValue,
 } from '../utils/v9DataHelpers';
 import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
+import { RelationshipCard } from '../components/RelationshipCard';
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -329,6 +330,11 @@ export function CustomerDetail() {
             </Card>
           </Grid>
         )}
+
+        {/* 関係性 */}
+        <Grid item xs={12}>
+          <RelationshipCard customerId={customer.trackingNo || id || ''} />
+        </Grid>
       </Grid>
 
       {/* 編集ダイアログ */}
