@@ -76,6 +76,17 @@
     - 作成・更新・削除時に個別同期
     - バッチ同期スクリプトとの併用可能
 
+### Phase 6: Customer Relationships Display ✅ (2025-12-07)
+19. **関係性API実装:**
+    - `src/api/relationships.ts`
+    - Firestoreから関係性データ取得
+    - 関係性タイプマスタ（家族・親族・その他）
+20. **関係性カードコンポーネント:**
+    - `src/components/RelationshipCard.tsx`
+    - 関連顧客一覧表示
+    - 信頼度スコア色分け（高:緑, 中:黄, 低:赤）
+    - クリックで関連顧客詳細へ遷移
+
 ### 現在のデータ統計
 | データ種別 | 件数 | 備考 |
 |-----------|------|------|
@@ -86,19 +97,18 @@
 ## 次のステップ
 
 ### 優先タスク
-1. [ ] **Firebase Auth実装**: Google認証
-2. [ ] **顧客詳細ページ改善**: 関係性表示
-3. [ ] **Deals Integration**: 顧客に紐づく案件表示
+1. [ ] **Deals Integration**: 顧客に紐づく案件表示
+2. [ ] **関係性編集機能**: 関係性の追加・編集・削除
+3. [ ] **Dashboard改善**: 売上ダッシュボード移植（V9から）
 
 ### 将来的な拡張
-- **Dashboard**: 売上ダッシュボード移植（V9から）
-- **関係性機能**: 顧客間関係性の表示・編集
+- **関係性詳細**: 関係性の信頼度更新・手動確認機能
 
 ## 既知の課題
 
 ### Technical Debt
-- Firebase AuthはAdmin SDK認証のみ（ユーザー認証未実装）
 - 削除済み顧客（status: 'deleted'）の検索除外フィルタ未実装
+- 関係性の編集・削除機能は未実装（表示のみ）
 
 ### 重要な注意点
 詳細は `docs/DEVELOPMENT_GUIDE.md` を参照
@@ -127,6 +137,9 @@
 | 2025-12-07 | FEATURE | 顧客削除機能（論理削除 + 確認ダイアログ） | ✅ Done |
 | 2025-12-07 | FEATURE | Algoliaリアルタイム同期（CRUD連動） | ✅ Done |
 | 2025-12-07 | FEATURE | customerService.ts作成（CRUD統合層） | ✅ Done |
+| 2025-12-07 | FEATURE | 関係性API作成（relationships.ts） | ✅ Done |
+| 2025-12-07 | FEATURE | 関係性カードコンポーネント作成 | ✅ Done |
+| 2025-12-07 | FEATURE | 顧客詳細ページに関係性表示追加 | ✅ Done |
 
 ---
 
