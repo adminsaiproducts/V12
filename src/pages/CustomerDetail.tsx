@@ -11,9 +11,15 @@ import {
   Alert,
   Divider,
   Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { getCustomerByTrackingNo, updateCustomer } from '../api/customers';
+import { deleteCustomer } from '../lib/customerService';
 import type { Customer } from '../types/firestore';
 import {
   formatAddress,
@@ -33,6 +39,8 @@ export function CustomerDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -133,6 +141,33 @@ export function CustomerDetail() {
     }
   };
 
+  // 削除ハンドラ
+  const handleDelete = async () => {
+    if (!customer?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteCustomer(customer.id);
+      setSnackbar({
+        open: true,
+        message: '顧客を削除しました',
+        severity: 'success',
+      });
+      // 一覧画面に戻る
+      navigate('/customers');
+    } catch (err) {
+      console.error('Error deleting customer:', err);
+      setSnackbar({
+        open: true,
+        message: '顧客の削除に失敗しました',
+        severity: 'error',
+      });
+      setDeleteDialogOpen(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -179,13 +214,23 @@ export function CustomerDetail() {
         >
           顧客一覧に戻る
         </Button>
-        <Button
-          variant="contained"
-          startIcon={<EditIcon />}
-          onClick={() => setEditDialogOpen(true)}
-        >
-          編集
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<EditIcon />}
+            onClick={() => setEditDialogOpen(true)}
+          >
+            編集
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            削除
+          </Button>
+        </Box>
       </Box>
 
       <Typography variant="h4" component="h1" gutterBottom>
@@ -294,6 +339,32 @@ export function CustomerDetail() {
         initialData={convertToFormData(customer)}
         mode="edit"
       />
+
+      {/* 削除確認ダイアログ */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>顧客を削除しますか？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            「{name}」を削除します。この操作は取り消せません。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleDelete}
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+          >
+            {isDeleting ? '削除中...' : '削除する'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar通知 */}
       <Snackbar

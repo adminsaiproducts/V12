@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -14,15 +15,27 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Button,
+  Snackbar,
 } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
+import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
+import { createCustomer } from '../lib/customerService';
 
 export function Customers() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const searchQuery = searchParams.get('q') || '';
+
+  // 新規作成ダイアログの状態
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   // Algolia検索を使用
   const { results, loading, error, totalHits, searchTime } = useAlgoliaSearch(searchQuery);
@@ -40,11 +53,43 @@ export function Customers() {
     navigate(`/customers/${trackingNo}`);
   };
 
+  // 新規顧客作成
+  const handleCreateCustomer = async (data: CustomerFormData) => {
+    try {
+      const trackingNo = await createCustomer(data);
+      setSnackbar({
+        open: true,
+        message: `顧客「${data.name}」を登録しました（管理番号: ${trackingNo}）`,
+        severity: 'success',
+      });
+      setCreateDialogOpen(false);
+      // 新しい顧客の詳細ページに遷移
+      navigate(`/customers/${trackingNo}`);
+    } catch (err) {
+      console.error('Failed to create customer:', err);
+      setSnackbar({
+        open: true,
+        message: `登録に失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`,
+        severity: 'error',
+      });
+    }
+  };
+
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        顧客一覧
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" component="h1">
+          顧客一覧
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          新規登録
+        </Button>
+      </Box>
 
       {/* Search box */}
       <Box sx={{ mb: 3 }}>
@@ -168,6 +213,22 @@ export function Customers() {
           font-weight: bold;
         }
       `}</style>
+
+      {/* 新規作成ダイアログ */}
+      <CustomerForm
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onSubmit={handleCreateCustomer}
+        mode="create"
+      />
+
+      {/* 通知スナックバー */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        message={snackbar.message}
+      />
     </Box>
   );
 }
