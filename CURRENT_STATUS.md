@@ -61,6 +61,21 @@
     - **原因**: Algoliaが古いJSONファイルから同期されていた
     - **解決**: Firestoreから直接Algoliaに同期するスクリプトを作成
 
+### Phase 5: Customer CRUD Completion ✅ (2025-12-07)
+15. **顧客サービス層作成:**
+    - `src/lib/customerService.ts`
+    - CRUD操作 + Algolia自動同期
+16. **顧客新規作成機能:**
+    - trackingNoの自動採番（数字最大+1）
+    - 作成時にAlgoliaへ自動同期
+17. **顧客削除機能（論理削除）:**
+    - status: 'deleted'による論理削除
+    - 削除確認ダイアログ
+    - 削除時にAlgoliaから自動削除
+18. **Algoliaリアルタイム同期:**
+    - 作成・更新・削除時に個別同期
+    - バッチ同期スクリプトとの併用可能
+
 ### 現在のデータ統計
 | データ種別 | 件数 | 備考 |
 |-----------|------|------|
@@ -71,21 +86,19 @@
 ## 次のステップ
 
 ### 優先タスク
-1. [ ] **CRUD Operations - Create**: 顧客新規作成機能
-2. [ ] **CRUD Operations - Delete**: 顧客削除機能（論理削除）
-3. [ ] **Firebase Auth実装**: Google認証
-4. [ ] **顧客詳細ページ改善**: 関係性表示
+1. [ ] **Firebase Auth実装**: Google認証
+2. [ ] **顧客詳細ページ改善**: 関係性表示
+3. [ ] **Deals Integration**: 顧客に紐づく案件表示
 
 ### 将来的な拡張
-- **Deals Integration**: 顧客に紐づく案件表示
 - **Dashboard**: 売上ダッシュボード移植（V9から）
 - **関係性機能**: 顧客間関係性の表示・編集
 
 ## 既知の課題
 
 ### Technical Debt
-- Algolia同期は手動実行（Firestore変更時のリアルタイム同期未実装）
 - Firebase AuthはAdmin SDK認証のみ（ユーザー認証未実装）
+- 削除済み顧客（status: 'deleted'）の検索除外フィルタ未実装
 
 ### 重要な注意点
 詳細は `docs/DEVELOPMENT_GUIDE.md` を参照
@@ -110,6 +123,10 @@
 | 2025-12-07 | DOCS | PROJECT_MANIFEST.md作成 | ✅ Done |
 | 2025-12-07 | DOCS | CURRENT_STATUS.md作成 | ✅ Done |
 | 2025-12-07 | DOCS | DEVELOPMENT_GUIDE.md作成 | ✅ Done |
+| 2025-12-07 | FEATURE | 顧客新規作成機能（自動採番付き） | ✅ Done |
+| 2025-12-07 | FEATURE | 顧客削除機能（論理削除 + 確認ダイアログ） | ✅ Done |
+| 2025-12-07 | FEATURE | Algoliaリアルタイム同期（CRUD連動） | ✅ Done |
+| 2025-12-07 | FEATURE | customerService.ts作成（CRUD統合層） | ✅ Done |
 
 ---
 
