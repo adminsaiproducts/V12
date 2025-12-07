@@ -10,10 +10,21 @@ import {
   CircularProgress,
   Alert,
   Divider,
+  Snackbar,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
-import { getCustomerByTrackingNo } from '../api/customers';
+import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material';
+import { getCustomerByTrackingNo, updateCustomer } from '../api/customers';
 import type { Customer } from '../types/firestore';
+import {
+  formatAddress,
+  getCustomerName,
+  getCustomerNameKana,
+  getPhoneNumber,
+  getEmail,
+  getMemo,
+  extractValue,
+} from '../utils/v9DataHelpers';
+import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,50 +32,105 @@ export function CustomerDetail() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  const fetchCustomer = async () => {
+    if (!id) {
+      setError('顧客IDが指定されていません');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await getCustomerByTrackingNo(id);
+      if (result) {
+        setCustomer(result);
+      } else {
+        setError('顧客が見つかりません');
+      }
+    } catch (err) {
+      setError('顧客データの取得に失敗しました');
+      console.error('Error fetching customer:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCustomer = async () => {
-      if (!id) {
-        setError('顧客IDが指定されていません');
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const result = await getCustomerByTrackingNo(id);
-        if (result) {
-          setCustomer(result);
-        } else {
-          setError('顧客が見つかりません');
-        }
-      } catch (err) {
-        setError('顧客データの取得に失敗しました');
-        console.error('Error fetching customer:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchCustomer();
   }, [id]);
 
-  const formatAddress = (address?: Customer['address']): string => {
-    if (!address) return '-';
-    return (
-      address.full ||
-      [
-        address.postalCode ? `〒${address.postalCode}` : '',
-        address.prefecture,
-        address.city,
-        address.town,
-        address.building,
-      ]
-        .filter(Boolean)
-        .join(' ')
-    );
+  // 顧客データをフォームデータに変換
+  const convertToFormData = (customer: Customer): Partial<CustomerFormData> => {
+    const customerData = customer as unknown as Record<string, unknown>;
+    const addressObj = customerData.address as Record<string, unknown> | undefined;
+
+    return {
+      trackingNo: customer.trackingNo || '',
+      name: getCustomerName(customerData),
+      nameKana: getCustomerNameKana(customerData),
+      phone: getPhoneNumber(customerData.phone),
+      phone2: getPhoneNumber(customerData.phone2),
+      email: getEmail(customerData.email),
+      postalCode: addressObj ? extractValue(addressObj.postalCode) : '',
+      prefecture: addressObj ? extractValue(addressObj.prefecture) : '',
+      city: addressObj ? extractValue(addressObj.city) : '',
+      town: addressObj ? extractValue(addressObj.town) || extractValue(addressObj.streetNumber) : '',
+      building: addressObj ? extractValue(addressObj.building) : '',
+      memo: getMemo(customerData.memo),
+    };
+  };
+
+  // フォーム送信ハンドラ
+  const handleFormSubmit = async (data: CustomerFormData) => {
+    if (!customer?.id) return;
+
+    try {
+      // 住所オブジェクトを構築
+      const addressUpdate = {
+        postalCode: data.postalCode || '',
+        prefecture: data.prefecture || '',
+        city: data.city || '',
+        town: data.town || '',
+        building: data.building || '',
+        full: [data.prefecture, data.city, data.town, data.building].filter(Boolean).join(''),
+      };
+
+      await updateCustomer(customer.id, {
+        name: data.name,
+        nameKana: data.nameKana || '',
+        phone: data.phone || '',
+        phone2: data.phone2 || '',
+        email: data.email || '',
+        address: addressUpdate,
+        memo: data.memo || '',
+      });
+
+      setSnackbar({
+        open: true,
+        message: '顧客情報を更新しました',
+        severity: 'success',
+      });
+
+      // データを再読み込み
+      await fetchCustomer();
+    } catch (err) {
+      console.error('Error updating customer:', err);
+      setSnackbar({
+        open: true,
+        message: '顧客情報の更新に失敗しました',
+        severity: 'error',
+      });
+      throw err;
+    }
   };
 
   if (loading) {
@@ -94,21 +160,39 @@ export function CustomerDetail() {
     return null;
   }
 
+  // V9データ構造対応のため、customerをRecord型として扱う
+  const customerData = customer as unknown as Record<string, unknown>;
+  const name = getCustomerName(customerData);
+  const nameKana = getCustomerNameKana(customerData);
+  const phone = getPhoneNumber(customerData.phone);
+  const phone2 = getPhoneNumber(customerData.phone2);
+  const email = getEmail(customerData.email);
+  const address = formatAddress(customerData.address);
+  const memo = getMemo(customerData.memo);
+
   return (
     <Box>
-      <Button
-        startIcon={<ArrowBackIcon />}
-        onClick={() => navigate('/customers')}
-        sx={{ mb: 2 }}
-      >
-        顧客一覧に戻る
-      </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/customers')}
+        >
+          顧客一覧に戻る
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={<EditIcon />}
+          onClick={() => setEditDialogOpen(true)}
+        >
+          編集
+        </Button>
+      </Box>
 
       <Typography variant="h4" component="h1" gutterBottom>
-        {customer.name}
+        {name}
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        管理番号: {customer.trackingNo}
+        管理番号: {customer.trackingNo || customer.id}
       </Typography>
 
       <Grid container spacing={3} sx={{ mt: 1 }}>
@@ -126,15 +210,15 @@ export function CustomerDetail() {
                   <Typography variant="caption" color="text.secondary">
                     氏名
                   </Typography>
-                  <Typography>{customer.name}</Typography>
+                  <Typography>{name}</Typography>
                 </Box>
 
-                {customer.nameKana && (
+                {nameKana && (
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       フリガナ
                     </Typography>
-                    <Typography>{customer.nameKana}</Typography>
+                    <Typography>{nameKana}</Typography>
                   </Box>
                 )}
 
@@ -142,24 +226,24 @@ export function CustomerDetail() {
                   <Typography variant="caption" color="text.secondary">
                     電話番号
                   </Typography>
-                  <Typography>{customer.phone || '-'}</Typography>
+                  <Typography>{phone}</Typography>
                 </Box>
 
-                {customer.phone2 && (
+                {phone2 && phone2 !== '-' && (
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       電話番号2
                     </Typography>
-                    <Typography>{customer.phone2}</Typography>
+                    <Typography>{phone2}</Typography>
                   </Box>
                 )}
 
-                {customer.email && (
+                {email && (
                   <Box>
                     <Typography variant="caption" color="text.secondary">
                       メール
                     </Typography>
-                    <Typography>{customer.email}</Typography>
+                    <Typography>{email}</Typography>
                   </Box>
                 )}
               </Box>
@@ -176,13 +260,13 @@ export function CustomerDetail() {
               </Typography>
               <Divider sx={{ mb: 2 }} />
 
-              <Typography>{formatAddress(customer.address)}</Typography>
+              <Typography>{address}</Typography>
             </CardContent>
           </Card>
         </Grid>
 
         {/* 備考 */}
-        {customer.memo && (
+        {memo && (
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -194,13 +278,30 @@ export function CustomerDetail() {
                 <Typography
                   sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                 >
-                  {customer.memo}
+                  {memo}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
         )}
       </Grid>
+
+      {/* 編集ダイアログ */}
+      <CustomerForm
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        onSubmit={handleFormSubmit}
+        initialData={convertToFormData(customer)}
+        mode="edit"
+      />
+
+      {/* Snackbar通知 */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        message={snackbar.message}
+      />
     </Box>
   );
 }

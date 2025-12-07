@@ -16,6 +16,7 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// V9のデータベース (crm-database-v9) に接続
+export const db = getFirestore(app, 'crm-database-v9');
 
 export default app;

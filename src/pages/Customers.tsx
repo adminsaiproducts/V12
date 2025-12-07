@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -14,43 +13,19 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Chip,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
-import { getCustomers, searchCustomersByName } from '../api/customers';
-import type { Customer } from '../types/firestore';
+import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 
 export function Customers() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const searchQuery = searchParams.get('q') || '';
 
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        let result: Customer[];
-        if (searchQuery) {
-          result = await searchCustomersByName(searchQuery);
-        } else {
-          result = await getCustomers(100);
-        }
-        setCustomers(result);
-      } catch (err) {
-        setError('顧客データの取得に失敗しました');
-        console.error('Error fetching customers:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCustomers();
-  }, [searchQuery]);
+  // Algolia検索を使用
+  const { results, loading, error, totalHits, searchTime } = useAlgoliaSearch(searchQuery);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -61,13 +36,8 @@ export function Customers() {
     }
   };
 
-  const handleRowClick = (customer: Customer) => {
-    navigate(`/customers/${customer.trackingNo}`);
-  };
-
-  const formatAddress = (address?: Customer['address']): string => {
-    if (!address) return '-';
-    return address.full || [address.prefecture, address.city, address.town].filter(Boolean).join('');
+  const handleRowClick = (trackingNo: string) => {
+    navigate(`/customers/${trackingNo}`);
   };
 
   return (
@@ -80,7 +50,7 @@ export function Customers() {
       <Box sx={{ mb: 3 }}>
         <TextField
           fullWidth
-          placeholder="顧客名で検索..."
+          placeholder="顧客名・フリガナ・電話番号・住所で検索（Algolia）..."
           value={searchQuery}
           onChange={handleSearchChange}
           InputProps={{
@@ -91,6 +61,18 @@ export function Customers() {
             ),
           }}
         />
+        {searchQuery && (
+          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              label={`"${searchQuery}" で検索中`}
+              size="small"
+              onDelete={() => setSearchParams({})}
+            />
+            <Typography variant="caption" color="text.secondary">
+              Algolia検索 ({searchTime}ms)
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       {/* Error */}
@@ -109,7 +91,15 @@ export function Customers() {
         <>
           {/* Count */}
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {customers.length} 件
+            {searchQuery ? (
+              <>
+                {results.length} 件ヒット（全 {totalHits} 件中）
+              </>
+            ) : (
+              <>
+                {results.length} 件表示（全 {totalHits} 件）
+              </>
+            )}
           </Typography>
 
           {/* Table */}
@@ -124,23 +114,43 @@ export function Customers() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {customers.map((customer) => (
+                {results.map((customer) => (
                   <TableRow
-                    key={customer.id}
+                    key={customer.objectID}
                     hover
-                    onClick={() => handleRowClick(customer)}
+                    onClick={() => handleRowClick(customer.trackingNo || customer.objectID)}
                     sx={{ cursor: 'pointer' }}
                   >
-                    <TableCell>{customer.trackingNo}</TableCell>
-                    <TableCell>{customer.name}</TableCell>
-                    <TableCell>{customer.phone || '-'}</TableCell>
-                    <TableCell>{formatAddress(customer.address)}</TableCell>
+                    <TableCell>{customer.trackingNo || customer.objectID}</TableCell>
+                    <TableCell>
+                      {customer._highlightResult?.name?.matchLevel !== 'none' ? (
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: customer._highlightResult?.name?.value || customer.name || '-',
+                          }}
+                        />
+                      ) : (
+                        customer.name || '-'
+                      )}
+                    </TableCell>
+                    <TableCell>{customer.phoneOriginal || customer.phone || '-'}</TableCell>
+                    <TableCell>
+                      {customer._highlightResult?.address?.matchLevel !== 'none' ? (
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: customer._highlightResult?.address?.value || customer.address || '-',
+                          }}
+                        />
+                      ) : (
+                        customer.address || '-'
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
-                {customers.length === 0 && (
+                {results.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} align="center">
-                      顧客が見つかりません
+                      {searchQuery ? '検索条件に一致する顧客が見つかりません' : '顧客が見つかりません'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -149,6 +159,15 @@ export function Customers() {
           </TableContainer>
         </>
       )}
+
+      {/* Algolia highlight styles */}
+      <style>{`
+        em {
+          background-color: #fff59d;
+          font-style: normal;
+          font-weight: bold;
+        }
+      `}</style>
     </Box>
   );
 }
