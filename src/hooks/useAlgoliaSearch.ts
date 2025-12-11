@@ -12,6 +12,15 @@ interface UseAlgoliaSearchResult {
   searchTime: number;
 }
 
+// 結果をtrackingNoの降順でソート（管理番号の大きい順）
+const sortByTrackingNoDesc = (hits: AlgoliaCustomerHit[]): AlgoliaCustomerHit[] => {
+  return [...hits].sort((a, b) => {
+    const aNo = parseInt(a.trackingNo, 10) || 0;
+    const bNo = parseInt(b.trackingNo, 10) || 0;
+    return bNo - aNo; // 降順
+  });
+};
+
 export function useAlgoliaSearch(query: string, debounceMs = 300): UseAlgoliaSearchResult {
   const [results, setResults] = useState<AlgoliaCustomerHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +37,9 @@ export function useAlgoliaSearch(query: string, debounceMs = 300): UseAlgoliaSea
           ...DEFAULT_SEARCH_OPTIONS,
           hitsPerPage: 100,
         });
-        setResults(hits as AlgoliaCustomerHit[]);
+        // 管理番号の大きい順にソート
+        const sortedHits = sortByTrackingNoDesc(hits as AlgoliaCustomerHit[]);
+        setResults(sortedHits);
         setTotalHits(nbHits);
         setSearchTime(processingTimeMS);
         setError(null);
@@ -51,7 +62,9 @@ export function useAlgoliaSearch(query: string, debounceMs = 300): UseAlgoliaSea
       });
       console.log('[Algolia] Results:', { nbHits, hitsCount: hits.length, processingTimeMS });
 
-      setResults(hits as AlgoliaCustomerHit[]);
+      // 検索結果も管理番号の大きい順にソート
+      const sortedHits = sortByTrackingNoDesc(hits as AlgoliaCustomerHit[]);
+      setResults(sortedHits);
       setTotalHits(nbHits);
       setSearchTime(processingTimeMS);
     } catch (err) {

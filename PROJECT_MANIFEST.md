@@ -1,190 +1,342 @@
-# CRM V12 MANIFEST: Firebase Hosting + Modern React Architecture
+# CRM V12 プロジェクトマニフェスト
 
-## Repository Information
-- **Name**: CRM V12
-- **URL**: https://github.com/adminsaiproducts/V12
-- **Branch**: main
-- **Hosting**: Firebase Hosting (crm-appsheet-v7.web.app)
+**バージョン**: 12.0.0
+**最終更新**: 2025-12-11
 
-## 0. 戦略的使命 (Strategic Mission)
+## プロジェクト概要
 
-本プロジェクトは、V9のGAS制限（iframe内動作、URL制御不可）を完全に解消し、**Firebase Hosting + Firestore + Algolia**による次世代CRMを実現する。
+CRM V12は、墓石販売業向けの顧客管理システムです。
+V9からの移行版として、以下の改善を実現しています：
 
-### V9 → V12 移行の背景
-
-V9はGASウェブアプリとして動作していたが、以下の制限により完全なWeb体験が提供できなかった：
-- ブラウザアドレスバーのURL変更不可（iframe制限）
-- ディープリンクがクエリパラメータ方式に限定
-- GASのURLFetchクォータ制限（20,000/day）
-
-V12ではFirebase Hostingに移行し、これらの制限を完全に解消する。
-
-## 1. 環境設定
-
-### Firebase/Firestore設定
-| プロパティ名 | 設定値 |
-| :--- | :--- |
-| `Firebase Project ID` | `crm-appsheet-v7` |
-| `Firestore Database ID` | `crm-database-v9` |
-| `Firebase Hosting URL` | `https://crm-appsheet-v7.web.app` |
-
-### Algolia設定
-| プロパティ名 | 設定値 |
-| :--- | :--- |
-| `ALGOLIA_APP_ID` | `5PE7L5U694` |
-| `ALGOLIA_INDEX_NAME` | `customers` |
-
-### サービスアカウント
-- サービスアカウントファイル: `V9/crm-appsheet-v7-4cce8f749b52.json`
-- 用途: Firebase Admin SDK認証、Firestore REST API
-
-## 2. 技術アーキテクチャ
-
-### A. Firebase Hosting + React SPA
-```
-V12/
-├── dist/                # [Deploy Target] Firebase Hosting
-├── src/                 # [Client Side] React + TypeScript + Vite
-│   ├── components/      # 共通コンポーネント
-│   ├── features/        # 機能別モジュール
-│   │   └── customers/   # 顧客機能
-│   ├── lib/             # ユーティリティ・API
-│   │   ├── firebase.ts  # Firebase初期化
-│   │   └── algolia.ts   # Algolia検索
-│   └── App.tsx          # メインアプリ
-├── scripts/             # ユーティリティスクリプト
-│   └── sync-firestore-to-algolia.cjs  # Firestore→Algolia同期
-└── vite.config.ts
-```
-
-### B. Technical Rules (鉄の掟)
-1. **Direct Firestore Access**: Firebase JS SDKでFirestoreに直接アクセス
-2. **Algolia for Search**: 検索機能はAlgoliaを使用（Firestoreの全文検索制限回避）
-3. **React Router DOM**: 完全なURLルーティング（v6）
-4. **Firebase Auth**: Google認証によるアクセス制御
-
-### C. データ同期アーキテクチャ
-```
-[Firestore] ←→ [V12 React App]
-     ↓
-[Algolia] ← sync-firestore-to-algolia.cjs
-     ↓
-[高速検索]
-```
-
-**重要**: Algoliaは必ずFirestoreから直接同期する。古いJSONファイルからの同期は厳禁。
-
-## 3. 開発ワークフロー
-
-### Build Commands
-```bash
-npm run dev             # 開発サーバー起動 (localhost:3000)
-npm run build           # 本番ビルド
-npm run preview         # ビルド結果プレビュー
-firebase deploy         # Firebase Hostingにデプロイ
-```
-
-### Algolia同期
-```bash
-node scripts/sync-firestore-to-algolia.cjs  # Firestore→Algolia同期
-```
-
-## 4. 完了済み機能
-
-### Phase 1: Firebase Hosting Setup ✅
-- [x] Firebase Hostingプロジェクト設定
-- [x] Vite + React + TypeScript基盤
-- [x] Firebase JS SDK統合
-
-### Phase 2: Firestore Integration ✅
-- [x] Firestore直接アクセス実装
-- [x] 顧客データ取得・更新機能
-
-### Phase 3: Customer Edit Features ✅ (2025-12-07)
-- [x] 顧客編集機能（React Hook Form + Zod）
-- [x] 郵便番号→住所自動入力（複数候補選択対応）
-- [x] 住所→郵便番号逆引き
-- [x] 整合性チェック（郵便番号と住所の不一致警告）
-
-### Phase 4: Algolia Search Integration ✅ (2025-12-07)
-- [x] Algoliaインデックス設定
-- [x] Firestore→Algolia同期スクリプト
-- [x] 高速顧客検索（13,673件を即座に検索）
-- [x] 住所データの完全同期（番地・建物名含む）
-
-## 5. 次のステップ
-
-### 優先タスク
-1. **CRUD Operations - Create**: 顧客新規作成機能
-2. **CRUD Operations - Delete**: 顧客削除機能（論理削除）
-3. **Firebase Auth**: Google認証の実装
-
-### 将来的な拡張
-- **Deals Integration**: 顧客に紐づく案件表示
-- **Relationships**: 顧客間関係性表示
-- **Dashboard**: 売上ダッシュボード移植
-
-## 6. 既知の問題と対策
-
-### よくある失敗パターン
-
-| 症状 | 原因 | 解決策 |
-|------|------|--------|
-| 住所が一覧で短い | Algoliaが古いデータを保持 | `sync-firestore-to-algolia.cjs`で再同期 |
-| Algolia検索結果が古い | JSONファイルから同期した | **必ずFirestoreから直接同期** |
-| Firebase認証エラー | サービスアカウント未設定 | V9/crm-appsheet-v7-...jsonを使用 |
-| Firestore接続エラー | Database IDが違う | `crm-database-v9`を指定 |
-
-### Algolia同期の重要ルール
-
-**絶対守るべきルール**: AlgoliaへのデータはFirestoreから直接取得して同期する
-
-```javascript
-// ✅ 正しい方法: Firestoreから直接
-const db = admin.firestore();
-db.settings({ databaseId: 'crm-database-v9' });
-const snapshot = await db.collection('Customers').get();
-// → Algoliaに同期
-
-// ❌ 間違った方法: 古いJSONファイルから
-const data = JSON.parse(fs.readFileSync('old-export.json'));
-// → 古いデータでAlgoliaを上書きしてしまう
-```
-
-## 7. 参照ドキュメント
-
-| ドキュメント | 役割 | 更新タイミング | 必読度 |
-|-------------|------|----------------|--------|
-| [CURRENT_STATUS.md](./CURRENT_STATUS.md) | 進捗・完了機能・変更履歴 | 機能完了/問題解決時 | ★★★ |
-| [PROJECT_MANIFEST.md](./PROJECT_MANIFEST.md) | プロジェクト全体像・鉄則・環境設定 | アーキテクチャ変更時 | ★★★ |
-| [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) | **開発ガイド（必読）** - 知見・失敗・ベストプラクティス | 新しい知見が得られたとき | ★★★ |
-
-### ドキュメントの使い方
-
-1. **開発開始時**: `CURRENT_STATUS.md` → `PROJECT_MANIFEST.md` → `DEVELOPMENT_GUIDE.md` の順で読む
-2. **新機能実装時**: 該当する設計書を確認してから実装
-3. **問題発生時**: `DEVELOPMENT_GUIDE.md` のトラブルシューティングを確認
-4. **セッション終了時**: 知見を `DEVELOPMENT_GUIDE.md` に追記し、`CURRENT_STATUS.md` の変更履歴を更新
-
-## 8. V9からの移行情報
-
-### データソース
-- **Firestore**: `crm-database-v9` (V9と共通)
-- **顧客データ**: 13,673件（通常顧客 + 典礼責任者）
-
-### V9のコードで参照できるもの
-- `V9/scripts/`: データ処理スクリプトの参考
-- `V9/docs/DEVELOPMENT_GUIDE.md`: 過去の失敗事例と解決策
-- `V9/migration/output/gas-scripts/`: Firestoreインポート用データ
-
-### V9の教訓（V12で解消済み）
-| V9の問題 | V12での解決 |
-|----------|-------------|
-| GAS iframe制限 | Firebase Hosting（完全URL制御） |
-| URLFetch クォータ | Firebase JS SDK（制限なし） |
-| クエリパラメータ方式ディープリンク | React Routerによる完全パスルーティング |
-| GAS :// パターン問題 | 該当なし（純粋React SPA） |
+- GENIEE CRMからのクリーンなデータ移行
+- React + TypeScript + Material UI によるモダンなフロントエンド
+- Firebase (Firestore) + Algolia によるスケーラブルなバックエンド
 
 ---
 
-*最終更新: 2025-12-07*
+## 技術スタック
+
+### フロントエンド
+
+| 技術 | バージョン | 用途 |
+|-----|-----------|-----|
+| React | 18.x | UIフレームワーク |
+| TypeScript | 5.x | 型安全な開発 |
+| Vite | 5.x | ビルドツール |
+| Material UI | 5.x | UIコンポーネント |
+| React Router | 6.x | ルーティング |
+| React Hook Form | - | フォーム管理 |
+| Zod | - | バリデーション |
+
+### バックエンド
+
+| 技術 | 用途 |
+|-----|-----|
+| Firebase Firestore | データベース (crm-database-v9) |
+| Firebase Authentication | 認証 (Google OAuth) |
+| Firebase Hosting | ホスティング |
+| Algolia | 全文検索 |
+
+### 開発ツール
+
+| ツール | 用途 |
+|-------|-----|
+| Node.js | 18+ |
+| npm | パッケージ管理 |
+| ESLint | リンター |
+| Prettier | コードフォーマッタ |
+
+---
+
+## ディレクトリ構造
+
+```
+V12/
+├── src/
+│   ├── api/              # APIクライアント
+│   │   ├── customers.ts  # 顧客API
+│   │   ├── deals.ts      # 商談API
+│   │   ├── relationships.ts  # 関係性API
+│   │   └── sales.ts      # 売上API
+│   ├── components/       # 再利用可能なコンポーネント
+│   │   ├── DealForm.tsx  # 商談フォーム（ダイアログ）
+│   │   ├── RelationshipCard.tsx  # 関係性カード
+│   │   └── ...
+│   ├── hooks/            # カスタムフック
+│   │   ├── useAlgoliaSearch.ts  # Algolia検索
+│   │   └── useMasters.ts        # マスターデータ取得
+│   ├── data/             # マスターデータ (JSON)
+│   │   ├── employees.json       # 従業員マスター
+│   │   └── relationshipTypes.json  # 関係性タイプ
+│   ├── lib/              # ライブラリ設定
+│   │   └── algolia.ts    # Algolia設定
+│   ├── pages/            # ページコンポーネント
+│   │   ├── Customers.tsx       # 顧客一覧
+│   │   ├── CustomerDetail.tsx  # 顧客詳細
+│   │   ├── DealList.tsx        # 商談一覧
+│   │   ├── DealEdit.tsx        # 商談編集
+│   │   ├── Relationships.tsx   # 関係性一覧
+│   │   └── ...
+│   ├── firebase/         # Firebase設定
+│   │   └── config.ts     # Firebase初期化 (databaseId: crm-database-v9)
+│   ├── types/            # TypeScript型定義
+│   └── utils/            # ユーティリティ関数
+├── scripts/              # 管理スクリプト
+│   ├── migrate-geniee-csv.cjs      # GENIEE CSVからの移行
+│   ├── sync-firestore-to-algolia.cjs # Algolia同期
+│   ├── fix-deal-assigned-to.cjs    # 商談担当者名更新
+│   ├── check-firestore-data.cjs    # Firestore確認
+│   ├── check-algolia.cjs           # Algolia確認
+│   └── delete-all-customers.cjs    # 顧客全削除
+├── docs/                 # ドキュメント
+│   └── DEVELOPMENT_GUIDE.md
+├── firestore.rules       # Firestoreセキュリティルール
+├── firestore.indexes.json # Firestoreインデックス
+├── CURRENT_STATUS.md     # 現在の状況
+└── PROJECT_MANIFEST.md   # このファイル
+```
+
+---
+
+## Firebase設定
+
+### プロジェクト情報
+
+| 項目 | 値 |
+|-----|---|
+| プロジェクトID | crm-appsheet-v7 |
+| データベースID | crm-database-v9 |
+| リージョン | asia-northeast1 |
+
+### コレクション構造
+
+| コレクション | 説明 |
+|-------------|-----|
+| Customers | 顧客情報 |
+| Deals | 商談情報 |
+| Relationships | 顧客間関係性 |
+| Temples | 寺院情報 |
+| Activities | 活動履歴 |
+
+### 認証
+
+- Google OAuth認証
+- ドメイン制限: `@saiproducts.co.jp`
+
+---
+
+## Algolia設定
+
+| 項目 | 値 |
+|-----|---|
+| アプリケーションID | 5PE7L5U694 |
+| インデックス名 | customers |
+| 検索可能属性 | name, nameKana, phone, address, memo |
+
+---
+
+## データ仕様
+
+### Customer (顧客)
+
+```typescript
+interface Customer {
+  id: string;                    // Firestoreドキュメント ID (customer_XXXX)
+  trackingNo: string;            // 追客番号 (数値文字列)
+  name: string;                  // 使用者名
+  nameKana?: string;             // フリガナ
+  phone?: string;                // 電話番号
+  mobile?: string;               // 携帯番号
+  email?: string;                // メールアドレス
+  address?: {                    // 住所
+    postalCode?: string;
+    prefecture?: string;
+    city?: string;
+    town?: string;
+    streetNumber?: string;
+    building?: string;
+    full?: string;
+  };
+  branch?: string;               // 拠点
+  visitRoute?: string;           // 来寺経緯
+  receptionist?: string;         // 受付担当
+  doNotContact?: boolean;        // 営業活動不可
+  crossSellTarget?: boolean;     // クロスセル対象
+  memo?: string;                 // 備考
+  memorialContact?: {...};       // 典礼責任者
+  needs?: {...};                 // ニーズ情報
+  createdAt?: string;            // 作成日時
+  updatedAt?: string;            // 更新日時
+}
+```
+
+### Deal (商談)
+
+```typescript
+interface Deal {
+  id: string;                    // Firestoreドキュメント ID
+  title: string;                 // 商談名
+  stage: DealStage;              // ステージ
+  probability?: number;          // 確度
+  amount?: number;               // 金額
+  assignedTo?: string;           // 担当者（従業員マスターのname）
+  templeName?: string;           // 寺院名
+  visitRoute?: string;           // 流入経路
+  // ... その他フィールド
+}
+```
+
+### 重要な型の注意点
+
+**trackingNo**:
+- 常に **文字列** として扱う
+- URLパラメータ、クエリ、保存すべて文字列で統一
+- 数値との比較時は型変換に注意
+
+**assignedTo (担当者)**:
+- 従業員マスター (employees.json) の name フィールドを使用
+- 形式: 「姓 名」（スペース区切り）例: 「冨田 恵」
+
+---
+
+## マスターデータ
+
+### 従業員マスター (src/data/employees.json)
+
+```typescript
+interface Employee {
+  id: string;          // 従業員ID
+  name: string;        // 名前（姓 名）例: "冨田 恵"
+  lastName: string;    // 姓
+  firstName: string;   // 名
+  isActive: boolean;   // アクティブフラグ
+  sortOrder: number;   // 表示順
+}
+```
+
+### 関係性タイプマスター (src/data/relationshipTypes.json)
+
+```typescript
+interface RelationshipType {
+  code: string;        // コード
+  name: string;        // 名称
+}
+```
+
+---
+
+## 外部サービス認証情報
+
+### サービスアカウント
+
+```
+C:\Users\satos\OneDrive\○大西\〇新CRMプロジェクト\Githubとの連携リポジトリ宛先\V9\crm-appsheet-v7-4cce8f749b52.json
+```
+
+### 環境変数 (.env)
+
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=crm-appsheet-v7.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=crm-appsheet-v7
+VITE_ALGOLIA_APP_ID=5PE7L5U694
+VITE_ALGOLIA_SEARCH_KEY=...
+```
+
+---
+
+## 開発フロー
+
+### 開発サーバー起動
+
+```bash
+cd V12
+npm run dev
+# http://localhost:3000 (または 3001, 3002, 3003)
+```
+
+### ビルド
+
+```bash
+npm run build
+```
+
+### デプロイ
+
+```bash
+firebase deploy --only hosting
+```
+
+---
+
+## スクリプト使用方法
+
+### データ移行 (GENIEE CSV)
+
+```bash
+node scripts/migrate-geniee-csv.cjs --csv <CSVファイルパス>
+
+# オプション
+--dry-run       # ドライラン（書き込みなし）
+--skip-delete   # 既存データ削除スキップ
+--skip-algolia  # Algolia同期スキップ
+```
+
+### Algolia同期
+
+```bash
+node scripts/sync-firestore-to-algolia.cjs
+```
+
+### 商談担当者名更新
+
+```bash
+node scripts/fix-deal-assigned-to.cjs
+```
+
+### データ確認
+
+```bash
+node scripts/check-firestore-data.cjs  # Firestore
+node scripts/check-algolia.cjs         # Algolia
+```
+
+---
+
+## 既知の問題と対応策
+
+### trackingNoの型不整合
+
+**問題**: Firestoreに数値と文字列が混在
+**対応**: `getCustomerByTrackingNo`で両方の型をクエリ
+**恒久対応**: 次回移行時に全て文字列で統一
+
+### Algoliaキャッシュ
+
+**問題**: ブラウザにキャッシュが残る
+**対応**: ハードリフレッシュ (Ctrl+Shift+R)
+
+### 関係性データの品質
+
+**問題**: 2,005件がtargetCustomerId=null
+**対応**: APIでnullチェックを追加し有効なデータのみ表示
+**恒久対応**: 将来的に顧客名マッチングを改善
+
+---
+
+## V9からの主な変更点
+
+1. **データソース**: MongoDB形式 → GENIEE CSV直接移行
+2. **trackingNo形式**: M-prefix (`M1744`) → 数値文字列 (`823`)
+3. **電話番号**: 10桁切り捨て問題を解消
+4. **備考欄**: 「電話番号欄から移動」ノイズを除去
+5. **フロントエンド**: React + Material UI で刷新
+6. **商談担当者**: 従業員マスターとの連携を実装
+
+---
+
+## 関連ドキュメント
+
+- [CURRENT_STATUS.md](./CURRENT_STATUS.md) - 現在の作業状況
+- [docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md) - 開発ガイド
+- [firestore.rules](./firestore.rules) - セキュリティルール

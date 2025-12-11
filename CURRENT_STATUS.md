@@ -1,146 +1,131 @@
-# CRM V12 Current Status
+# CRM V12 現在の状況
 
-## プロジェクト情報
+**最終更新**: 2025-12-11 JST
 
-| 項目 | 値 |
-| :--- | :--- |
-| プロジェクト名 | CRM V12 System |
-| GitHub Repository | https://github.com/adminsaiproducts/V12 |
-| Firestore Database | `crm-database-v9` (GCP: `crm-appsheet-v7`) |
-| Firebase Hosting | crm-appsheet-v7.web.app |
-| Algolia Index | `customers` (App ID: `5PE7L5U694`) |
+## 現在のステータス: 商談担当者の従業員マスター連携完了
 
-## 技術スタック
+### 直近で実施した作業
 
-| カテゴリ | 技術 |
-| :--- | :--- |
-| Frontend | React 18 + TypeScript + Vite |
-| UI | Material UI v6 |
-| Routing | React Router DOM v6 |
-| Form | React Hook Form + Zod |
-| Database | Firestore (Firebase JS SDK) |
-| Search | Algolia (algoliasearch) |
-| Hosting | Firebase Hosting |
+1. **関係性ページからの顧客詳細遷移機能** (2025-12-11)
+   - 関係性一覧ページの各行をクリックでソース顧客の関係性セクションに遷移
+   - CustomerDetail.tsx に `#relationships` ハッシュでのスクロール機能を追加
+   - 行全体のクリックと、アイコンボタンの個別クリックの両方に対応
 
-## 完了したマイルストーン
+2. **商談担当者フィールドを従業員マスターに紐づけ** (2025-12-11)
+   - DealForm.tsx (商談ダイアログ) の担当者フィールドをセレクトボックスに変更
+   - DealEdit.tsx (商談編集ページ) の担当者フィールドをセレクトボックスに変更
+   - useMaster('employees') フックを使用してアクティブな従業員のみ表示
 
-### Phase 1: Firebase Hosting Setup ✅
-1. **Firebase Hostingプロジェクト設定** (crm-appsheet-v7)
-2. **Vite + React + TypeScript基盤構築**
-3. **Material UI統合**
-4. **React Router DOM設定**
+3. **既存商談データの担当者名を従業員マスター形式に更新** (2025-12-11)
+   - fix-deal-assigned-to.cjs スクリプトを作成・実行
+   - 4,890件の商談データを処理
+   - 「冨田恵」→「冨田 恵」のように、スペースなし形式からスペースあり形式に更新
+   - 対象: 山田真佐世、三宅かおり、冨田恵、山崎由記、石森静穂、遠山裕之、加藤美夢、中島美穂、熊田和美、藤橋靖、中村友可里 など
 
-### Phase 2: Firestore Integration ✅
-5. **Firebase JS SDK統合**
-6. **Firestore直接アクセス実装**
-7. **顧客データ取得機能** (13,673件)
+4. **顧客一覧の並び順を管理番号降順に変更**
+   - useAlgoliaSearch.ts で検索結果をtrackingNo降順でソート
 
-### Phase 3: Customer Edit Features ✅ (2025-12-07)
-8. **顧客編集機能:**
-   - React Hook Form + Zodバリデーション
-   - 既存データとの整合性（性別「男」「女」対応）
-9. **郵便番号→住所変換:**
-   - zipcloud API連携
-   - 複数結果がある場合の選択UI
-10. **住所→郵便番号検索:**
-    - HeartRails Geo API連携
-    - 逆引き機能
-11. **整合性チェック:**
-    - 郵便番号と住所の不一致警告機能
-
-### Phase 4: Algolia Search Integration ✅ (2025-12-07)
-12. **Algoliaインデックス設定:**
-    - searchableAttributes設定
-    - 日本語対応（queryLanguages: ['ja']）
-13. **Firestore→Algolia同期スクリプト作成:**
-    - `scripts/sync-firestore-to-algolia.cjs`
-    - Firebase Admin SDK使用
-    - 13,673件の顧客データを同期
-14. **住所データ完全同期問題の解決:**
-    - **問題**: 一覧で住所が短く表示（「東京都目黒区青葉台」のみ）
-    - **原因**: Algoliaが古いJSONファイルから同期されていた
-    - **解決**: Firestoreから直接Algoliaに同期するスクリプトを作成
-
-### Phase 5: Customer CRUD Completion ✅ (2025-12-07)
-15. **顧客サービス層作成:**
-    - `src/lib/customerService.ts`
-    - CRUD操作 + Algolia自動同期
-16. **顧客新規作成機能:**
-    - trackingNoの自動採番（数字最大+1）
-    - 作成時にAlgoliaへ自動同期
-17. **顧客削除機能（論理削除）:**
-    - status: 'deleted'による論理削除
-    - 削除確認ダイアログ
-    - 削除時にAlgoliaから自動削除
-18. **Algoliaリアルタイム同期:**
-    - 作成・更新・削除時に個別同期
-    - バッチ同期スクリプトとの併用可能
-
-### Phase 6: Customer Relationships Display ✅ (2025-12-07)
-19. **関係性API実装:**
-    - `src/api/relationships.ts`
-    - Firestoreから関係性データ取得
-    - 関係性タイプマスタ（家族・親族・その他）
-20. **関係性カードコンポーネント:**
-    - `src/components/RelationshipCard.tsx`
-    - 関連顧客一覧表示
-    - 信頼度スコア色分け（高:緑, 中:黄, 低:赤）
-    - クリックで関連顧客詳細へ遷移
-
-### 現在のデータ統計
-| データ種別 | 件数 | 備考 |
-|-----------|------|------|
-| 通常顧客 | 10,852件 | 数字始まりの追客NO |
-| 典礼責任者顧客 | 2,821件 | M番号 |
-| **合計顧客数** | **13,673件** | Algolia同期済み |
-
-## 次のステップ
-
-### 優先タスク
-1. [ ] **Deals Integration**: 顧客に紐づく案件表示
-2. [ ] **関係性編集機能**: 関係性の追加・編集・削除
-3. [ ] **Dashboard改善**: 売上ダッシュボード移植（V9から）
-
-### 将来的な拡張
-- **関係性詳細**: 関係性の信頼度更新・手動確認機能
-
-## 既知の課題
-
-### Technical Debt
-- 削除済み顧客（status: 'deleted'）の検索除外フィルタ未実装
-- 関係性の編集・削除機能は未実装（表示のみ）
-
-### 重要な注意点
-詳細は `docs/DEVELOPMENT_GUIDE.md` を参照
-
-1. **Algolia同期は必ずFirestoreから直接行う**（古いJSONファイル禁止）
-2. **住所データはオブジェクトとして保存**（JSON文字列ではない）
-3. **Zodスキーマは既存データのフォーマットを確認してから設計**
-
-## 変更履歴 (Changelog)
-
-| Date | Type | Details | Status |
-| :--- | :--- | :--- | :--- |
-| 2025-12-07 | SETUP | V12プロジェクト初期化（Vite + React + TypeScript） | ✅ Done |
-| 2025-12-07 | FEATURE | Firebase Hosting設定 | ✅ Done |
-| 2025-12-07 | FEATURE | Material UI + React Router統合 | ✅ Done |
-| 2025-12-07 | FEATURE | Firestore直接アクセス実装 | ✅ Done |
-| 2025-12-07 | FEATURE | 顧客編集機能（React Hook Form + Zod） | ✅ Done |
-| 2025-12-07 | FEATURE | 郵便番号⇔住所の双方向検索機能 | ✅ Done |
-| 2025-12-07 | FEATURE | Algoliaインデックス設定 | ✅ Done |
-| 2025-12-07 | BUG | 顧客一覧で住所が短く表示される問題を発見 | ✅ Fixed |
-| 2025-12-07 | FIX | sync-firestore-to-algolia.cjs作成（Firestore直接同期） | ✅ Done |
-| 2025-12-07 | DOCS | PROJECT_MANIFEST.md作成 | ✅ Done |
-| 2025-12-07 | DOCS | CURRENT_STATUS.md作成 | ✅ Done |
-| 2025-12-07 | DOCS | DEVELOPMENT_GUIDE.md作成 | ✅ Done |
-| 2025-12-07 | FEATURE | 顧客新規作成機能（自動採番付き） | ✅ Done |
-| 2025-12-07 | FEATURE | 顧客削除機能（論理削除 + 確認ダイアログ） | ✅ Done |
-| 2025-12-07 | FEATURE | Algoliaリアルタイム同期（CRUD連動） | ✅ Done |
-| 2025-12-07 | FEATURE | customerService.ts作成（CRUD統合層） | ✅ Done |
-| 2025-12-07 | FEATURE | 関係性API作成（relationships.ts） | ✅ Done |
-| 2025-12-07 | FEATURE | 関係性カードコンポーネント作成 | ✅ Done |
-| 2025-12-07 | FEATURE | 顧客詳細ページに関係性表示追加 | ✅ Done |
+5. **ダッシュボードのテーブル表示改善**
+   - 最新のデータが上に表示されるように変更
+   - 行クリックで詳細ページに遷移
 
 ---
 
-*最終更新: 2025-12-07*
+## 次に必要なアクション
+
+### 動作確認
+
+1. **商談編集画面で担当者がセレクトボックスになっていることを確認**
+   - 商談一覧から任意の商談を選択し編集画面を開く
+   - 担当者フィールドがドロップダウンになっていることを確認
+
+2. **関係性ページからの遷移を確認**
+   - `/relationships` ページで任意の行をクリック
+   - ソース顧客の詳細ページの関係性セクションにスクロールされることを確認
+
+---
+
+## 現在のシステム状態
+
+### バックエンド (Firebase/Algolia)
+
+| サービス | 状態 | データ件数 |
+|---------|------|-----------|
+| Firestore (crm-database-v9) | 正常 | Customers: 10,954件 |
+| Firestore (crm-database-v9) | 正常 | Deals: 4,890件 (担当者名更新済み) |
+| Firestore (crm-database-v9) | 一部問題あり | Relationships: 2,950件 (うち945件が有効) |
+| Algolia (customers index) | 正常 | 10,954件 |
+
+### フロントエンド (V12)
+
+| 項目 | 状態 |
+|-----|------|
+| 開発サーバー | http://localhost:3003 で稼働中 |
+| ビルド | 正常 |
+| HMR | 正常動作 |
+
+---
+
+## ファイル変更履歴 (今回のセッション: 2025-12-11)
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/pages/Relationships.tsx` | 行クリックで顧客詳細へ遷移、stopPropagation追加 |
+| `src/pages/CustomerDetail.tsx` | #relationships ハッシュでのスクロール機能追加 |
+| `src/components/DealForm.tsx` | 担当者フィールドを従業員マスターセレクトボックスに変更 |
+| `src/pages/DealEdit.tsx` | 担当者フィールドを従業員マスターセレクトボックスに変更 |
+| `src/hooks/useAlgoliaSearch.ts` | trackingNo降順ソート追加 |
+| `scripts/fix-deal-assigned-to.cjs` | 商談担当者名更新スクリプト新規作成 |
+
+---
+
+## 発生した問題と解決策
+
+### 問題1: 商談編集ページに担当者セレクトが反映されなかった
+
+**原因**:
+- DealForm.tsx (ダイアログ) と DealEdit.tsx (独立ページ) の2つのコンポーネントがあった
+- DealForm.tsx のみを修正したため、DealEdit.tsx には反映されなかった
+
+**解決**:
+- DealEdit.tsx にも同様の useMaster フック導入と TextField select 化を実施
+
+### 問題2: マイグレーションスクリプトの認証エラー
+
+**原因**:
+- serviceAccount.json のパスが間違っていた
+- 正しいパスは `V9/crm-appsheet-v7-4cce8f749b52.json`
+
+**解決**:
+- 既存の check-firestore-data.cjs を参考に正しい認証情報を設定
+
+### 問題3: バッチ更新で "Cannot modify committed batch" エラー
+
+**原因**:
+- 450件ごとにバッチをコミット後、新しいバッチを作成していなかった
+
+**解決**:
+- `batch = db.batch()` でコミット後に新しいバッチを作成するよう修正
+
+---
+
+## 確認コマンド
+
+```bash
+# 開発サーバー起動
+cd V12 && npm run dev
+
+# Firestoreデータ確認
+cd V12 && node scripts/check-firestore-data.cjs
+
+# 商談担当者名を従業員マスター形式に更新（実行済み）
+cd V12 && node scripts/fix-deal-assigned-to.cjs
+```
+
+---
+
+## 備考
+
+- 商談の担当者名は従業員マスターの正式名（姓と名の間にスペースあり）に統一された
+- 新規商談作成・編集時は従業員マスターからの選択のみ可能
+- 関係性一覧ページの行クリックで顧客詳細の関係性セクションに直接遷移可能
