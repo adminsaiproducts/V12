@@ -2,7 +2,7 @@
  * 商談フォームコンポーネント
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -20,7 +20,6 @@ import {
   AccordionDetails,
   InputAdornment,
 } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -54,7 +53,6 @@ const dealSchema = z.object({
   visitDate: z.string().optional(),
   visitFollowUpDate: z.string().optional(),
   tentativeReservationDate: z.string().optional(),
-  applicationDate: z.string().optional(),
   contractDate: z.string().optional(),
   expectedCloseDate: z.string().optional(),
 
@@ -156,12 +154,12 @@ export const DealForm: React.FC<DealFormProps> = ({
   // 従業員マスターを取得
   const { master: employeesMaster, loading: employeesLoading } = useMaster('employees');
 
-  // アクティブな従業員のみ取得し、名前でソート
+  // アクティブな従業員のみ取得し、フリガナ昇順でソート
   const activeEmployees = React.useMemo(() => {
     if (!employeesMaster?.items) return [];
     return employeesMaster.items
       .filter(item => item.isActive)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
+      .sort((a, b) => (a.furigana || '').localeCompare(b.furigana || '', 'ja'));
   }, [employeesMaster]);
 
   const {
@@ -189,14 +187,13 @@ export const DealForm: React.FC<DealFormProps> = ({
     }
   }, [open, initialData, reset]);
 
-  // Accordion expansion state
-  const [expandedSections, setExpandedSections] = useState<string[]>(['basic']);
-
-  const handleAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
-    setExpandedSections(prev =>
-      isExpanded ? [...prev, panel] : prev.filter(p => p !== panel)
-    );
-  };
+  // ステージが契約済の場合、確度を100%に自動設定
+  const currentStage = watch('stage');
+  useEffect(() => {
+    if (currentStage === 'contracted') {
+      setValue('probability', 100);
+    }
+  }, [currentStage, setValue]);
 
   // 入金合計と残高の自動計算
   const amount = watch('amount');
@@ -234,12 +231,8 @@ export const DealForm: React.FC<DealFormProps> = ({
       <DialogContent>
         <Box component="form" sx={{ mt: 2 }}>
           {/* 基本情報 */}
-          <Accordion
-            expanded={expandedSections.includes('basic')}
-            onChange={handleAccordionChange('basic')}
-            defaultExpanded
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Accordion expanded>
+            <AccordionSummary>
               <Typography variant="subtitle1" fontWeight="bold">基本情報</Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -339,7 +332,7 @@ export const DealForm: React.FC<DealFormProps> = ({
                         </MenuItem>
                         {activeEmployees.map((employee) => (
                           <MenuItem key={employee.id} value={employee.name}>
-                            {employee.name}
+                            {employee.name}{employee.furigana ? ` (${employee.furigana})` : ''}
                           </MenuItem>
                         ))}
                       </TextField>
@@ -351,11 +344,8 @@ export const DealForm: React.FC<DealFormProps> = ({
           </Accordion>
 
           {/* 寺院・プラン */}
-          <Accordion
-            expanded={expandedSections.includes('temple')}
-            onChange={handleAccordionChange('temple')}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Accordion expanded>
+            <AccordionSummary>
               <Typography variant="subtitle1" fontWeight="bold">寺院・プラン</Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -447,11 +437,8 @@ export const DealForm: React.FC<DealFormProps> = ({
           </Accordion>
 
           {/* 進捗日付 */}
-          <Accordion
-            expanded={expandedSections.includes('dates')}
-            onChange={handleAccordionChange('dates')}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Accordion expanded>
+            <AccordionSummary>
               <Typography variant="subtitle1" fontWeight="bold">進捗日付</Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -563,21 +550,6 @@ export const DealForm: React.FC<DealFormProps> = ({
                 </Grid>
                 <Grid item xs={6} sm={4}>
                   <Controller
-                    name="applicationDate"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        label="申込日"
-                        fullWidth
-                        type="date"
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={6} sm={4}>
-                  <Controller
                     name="contractDate"
                     control={control}
                     render={({ field }) => (
@@ -641,11 +613,8 @@ export const DealForm: React.FC<DealFormProps> = ({
           </Accordion>
 
           {/* 入金情報 */}
-          <Accordion
-            expanded={expandedSections.includes('payment')}
-            onChange={handleAccordionChange('payment')}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Accordion expanded>
+            <AccordionSummary>
               <Typography variant="subtitle1" fontWeight="bold">入金情報</Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -803,11 +772,8 @@ export const DealForm: React.FC<DealFormProps> = ({
           </Accordion>
 
           {/* 備考 */}
-          <Accordion
-            expanded={expandedSections.includes('notes')}
-            onChange={handleAccordionChange('notes')}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Accordion expanded>
+            <AccordionSummary>
               <Typography variant="subtitle1" fontWeight="bold">備考</Typography>
             </AccordionSummary>
             <AccordionDetails>

@@ -15,6 +15,7 @@ export const DEFAULT_SEARCH_OPTIONS = {
   hitsPerPage: 100,
   attributesToRetrieve: [
     'objectID',
+    'firestoreId',
     'trackingNo',
     'name',
     'nameKana',
@@ -25,13 +26,15 @@ export const DEFAULT_SEARCH_OPTIONS = {
     'addressPrefecture',
     'addressCity',
     'status',
+    'memo',
   ],
-  attributesToHighlight: ['name', 'nameKana', 'address'],
+  attributesToHighlight: ['name', 'nameKana', 'address', 'memo'],
 };
 
 // Algolia検索結果の型
 export interface AlgoliaCustomerHit {
   objectID: string;
+  firestoreId?: string;
   trackingNo: string;
   name: string;
   nameKana: string;
@@ -42,9 +45,11 @@ export interface AlgoliaCustomerHit {
   addressPrefecture: string;
   addressCity: string;
   status: string;
+  memo?: string;
   _highlightResult?: {
     name?: { value: string; matchLevel: string };
     nameKana?: { value: string; matchLevel: string };
     address?: { value: string; matchLevel: string };
+    memo?: { value: string; matchLevel: string };
   };
 }

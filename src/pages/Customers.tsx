@@ -23,6 +23,50 @@ import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
 import { createCustomer } from '../lib/customerService';
 
+// 住所を文字列に変換するヘルパー関数
+// AlgoliaにJSON文字列として保存されている古いデータにも対応
+function formatAddressForDisplay(address: unknown): string {
+  if (!address) return '-';
+
+  // 文字列の場合
+  if (typeof address === 'string') {
+    // JSON文字列かどうかチェック（古いAlgoliaデータ対応）
+    if (address.startsWith('{') && address.includes('"postalCode"')) {
+      try {
+        const parsed = JSON.parse(address);
+        return formatAddressObject(parsed);
+      } catch {
+        // パースできない場合はそのまま返す
+        return address || '-';
+      }
+    }
+    return address || '-';
+  }
+
+  // オブジェクトの場合
+  if (typeof address === 'object' && address !== null) {
+    return formatAddressObject(address as Record<string, unknown>);
+  }
+
+  return '-';
+}
+
+// 住所オブジェクトを文字列に変換
+function formatAddressObject(addr: Record<string, unknown>): string {
+  // fullまたはfullAddressがあればそれを使用
+  if (addr.full && typeof addr.full === 'string') return addr.full;
+  if (addr.fullAddress && typeof addr.fullAddress === 'string') return addr.fullAddress;
+  // 各パーツを結合
+  const parts = [
+    addr.prefecture,
+    addr.city,
+    addr.town,
+    addr.streetNumber,
+    addr.building,
+  ].filter((p) => p && typeof p === 'string');
+  return parts.length > 0 ? parts.join('') : '-';
+}
+
 export function Customers() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -76,134 +120,150 @@ export function Customers() {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4" component="h1">
-          顧客一覧
-        </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          新規登録
-        </Button>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* ヘッダーと検索バー（スクロール時も固定） */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          bgcolor: 'background.paper',
+          pb: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h4" component="h1">
+            顧客一覧
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            新規登録
+          </Button>
+        </Box>
+
+        {/* Search box */}
+        <Box>
+          <TextField
+            fullWidth
+            placeholder="管理番号・顧客名・フリガナ・電話番号・住所で検索..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          {searchQuery && (
+            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                label={`"${searchQuery}" で検索中`}
+                size="small"
+                onDelete={() => setSearchParams({})}
+              />
+              <Typography variant="caption" color="text.secondary">
+                Algolia検索 ({searchTime}ms)
+              </Typography>
+            </Box>
+          )}
+        </Box>
       </Box>
 
-      {/* Search box */}
-      <Box sx={{ mb: 3 }}>
-        <TextField
-          fullWidth
-          placeholder="顧客名・フリガナ・電話番号・住所で検索（Algolia）..."
-          value={searchQuery}
-          onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-        />
-        {searchQuery && (
-          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              label={`"${searchQuery}" で検索中`}
-              size="small"
-              onDelete={() => setSearchParams({})}
-            />
-            <Typography variant="caption" color="text.secondary">
-              Algolia検索 ({searchTime}ms)
-            </Typography>
+      {/* スクロール可能なコンテンツ領域 */}
+      <Box sx={{ flex: 1, overflow: 'auto', pt: 2 }}>
+        {/* Error */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Loading */}
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
           </Box>
+        ) : (
+          <>
+            {/* Count */}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {searchQuery ? (
+                <>
+                  {results.length} 件ヒット（全 {totalHits} 件中）
+                </>
+              ) : (
+                <>
+                  {results.length} 件表示（全 {totalHits} 件）
+                </>
+              )}
+            </Typography>
+
+            {/* Table */}
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>管理番号</TableCell>
+                    <TableCell>顧客名</TableCell>
+                    <TableCell>電話番号</TableCell>
+                    <TableCell>住所</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {results.map((customer) => (
+                    <TableRow
+                      key={customer.objectID}
+                      hover
+                      onClick={() => handleRowClick(customer.trackingNo || customer.objectID)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>{customer.trackingNo || customer.objectID}</TableCell>
+                      <TableCell>
+                        {customer._highlightResult?.name?.matchLevel !== 'none' ? (
+                          <span
+                            dangerouslySetInnerHTML={{
+                              __html: customer._highlightResult?.name?.value || customer.name || '-',
+                            }}
+                          />
+                        ) : (
+                          customer.name || '-'
+                        )}
+                      </TableCell>
+                      <TableCell>{customer.phoneOriginal || customer.phone || '-'}</TableCell>
+                      <TableCell>
+                        {customer._highlightResult?.address?.matchLevel !== 'none' ? (
+                          <span
+                            dangerouslySetInnerHTML={{
+                              __html: customer._highlightResult?.address?.value || formatAddressForDisplay(customer.address),
+                            }}
+                          />
+                        ) : (
+                          formatAddressForDisplay(customer.address)
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {results.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center">
+                        {searchQuery ? '検索条件に一致する顧客が見つかりません' : '顧客が見つかりません'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
         )}
       </Box>
-
-      {/* Error */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Loading */}
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          {/* Count */}
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {searchQuery ? (
-              <>
-                {results.length} 件ヒット（全 {totalHits} 件中）
-              </>
-            ) : (
-              <>
-                {results.length} 件表示（全 {totalHits} 件）
-              </>
-            )}
-          </Typography>
-
-          {/* Table */}
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>管理番号</TableCell>
-                  <TableCell>顧客名</TableCell>
-                  <TableCell>電話番号</TableCell>
-                  <TableCell>住所</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {results.map((customer) => (
-                  <TableRow
-                    key={customer.objectID}
-                    hover
-                    onClick={() => handleRowClick(customer.trackingNo || customer.objectID)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>{customer.trackingNo || customer.objectID}</TableCell>
-                    <TableCell>
-                      {customer._highlightResult?.name?.matchLevel !== 'none' ? (
-                        <span
-                          dangerouslySetInnerHTML={{
-                            __html: customer._highlightResult?.name?.value || customer.name || '-',
-                          }}
-                        />
-                      ) : (
-                        customer.name || '-'
-                      )}
-                    </TableCell>
-                    <TableCell>{customer.phoneOriginal || customer.phone || '-'}</TableCell>
-                    <TableCell>
-                      {customer._highlightResult?.address?.matchLevel !== 'none' ? (
-                        <span
-                          dangerouslySetInnerHTML={{
-                            __html: customer._highlightResult?.address?.value || customer.address || '-',
-                          }}
-                        />
-                      ) : (
-                        customer.address || '-'
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {results.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} align="center">
-                      {searchQuery ? '検索条件に一致する顧客が見つかりません' : '顧客が見つかりません'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
 
       {/* Algolia highlight styles */}
       <style>{`

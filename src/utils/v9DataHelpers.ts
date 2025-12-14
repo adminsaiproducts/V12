@@ -179,6 +179,7 @@ export function getCustomerNameKana(customer: Record<string, unknown>): string {
 /**
  * 電話番号を取得
  * V9では phone は { original, cleaned, issues, isValid, type } 形式
+ * 注意: cleanedは正規化処理で桁が欠落する場合があるため、originalを優先して表示
  */
 export function getPhoneNumber(phone: unknown): string {
   if (!phone) return '-';
@@ -197,12 +198,12 @@ export function getPhoneNumber(phone: unknown): string {
 
   if (typeof phone === 'object' && phone !== null) {
     const obj = phone as Record<string, unknown>;
-    // cleaned を優先、なければ original
-    if (typeof obj.cleaned === 'string' && obj.cleaned) {
-      return obj.cleaned;
-    }
+    // original を優先（cleanedは正規化処理で桁が欠落する場合があるため）
     if (typeof obj.original === 'string' && obj.original) {
       return obj.original;
+    }
+    if (typeof obj.cleaned === 'string' && obj.cleaned) {
+      return obj.cleaned;
     }
   }
 

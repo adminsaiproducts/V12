@@ -15,6 +15,14 @@
         { "fieldPath": "customerId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "Deals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerTrackingNo", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

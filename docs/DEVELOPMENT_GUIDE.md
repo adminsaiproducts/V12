@@ -1,6 +1,6 @@
 # CRM V12 開発ガイド
 
-**最終更新**: 2025-12-11
+**最終更新**: 2025-12-14
 
 このドキュメントは、CRM V12 の開発を再開する際に必要な情報をまとめています。
 
@@ -88,7 +88,31 @@ firebase deploy --only hosting
 
 ## 3. 過去の失敗と教訓（再発防止策）
 
-### 3.1 【重要】Firestore databaseId の設定漏れ
+### 3.1 【最重要】顧客リンクはtrackingNoを使用する
+
+**発生状況**:
+- 樹木墓商談詳細、樹木墓オプション詳細で「顧客詳細へ」をクリックすると「顧客が見つかりません」エラー
+- URLが `/customers/customer_11545` のようにFirestoreドキュメントID形式になっていた
+
+**原因**:
+- `linkedCustomer.id`（FirestoreドキュメントID）を使用していた
+- CustomerDetailは`getCustomerByTrackingNo`を使用するため、`customer_XXXXX`形式では見つからない
+
+**正しい実装**:
+```typescript
+// ✅ 正しい: trackingNoを使用
+navigate(`/customers/${deal.linkedCustomerTrackingNo || linkedCustomer.trackingNo}`)
+
+// ❌ 間違い: FirestoreドキュメントIDを使用（絶対にしない）
+navigate(`/customers/${linkedCustomer.id}`)
+```
+
+**チェックリスト**:
+- [ ] 顧客リンクには必ず`trackingNo`を使用
+- [ ] `linkedCustomer.id`はURLに**絶対に**使用しない
+- [ ] 紐づけ保存時は`linkedCustomerTrackingNo`フィールドを必ず保存
+
+### 3.2 【重要】Firestore databaseId の設定漏れ
 
 **発生状況**:
 - スクリプトで `databaseId: 'crm-database-v9'` を設定し忘れ
@@ -108,7 +132,7 @@ db.settings({
 - 全ての管理スクリプト (`scripts/*.cjs`)
 - Firebase Admin SDKを使う全てのコード
 
-### 3.2 【重要】trackingNo の型不整合
+### 3.3 【重要】trackingNo の型不整合
 
 **発生状況**:
 - CSVパーサーが数値を数値型として解釈
@@ -130,7 +154,7 @@ if (snapshotString.empty) {
 }
 ```
 
-### 3.3 【重要】Algolia の古いデータ残存
+### 3.4 【重要】Algolia の古いデータ残存
 
 **発生状況**:
 - Firestoreを更新してもAlgoliaに古いデータが残る
@@ -144,7 +168,7 @@ await index.clearObjects();
 
 **注意**: `clearObjects()`を実行すると一時的に検索が使えなくなる
 
-### 3.4 【重要】バッチ更新でのエラー
+### 3.5 【重要】バッチ更新でのエラー
 
 **発生状況**:
 - 450件ごとにバッチをコミット後、同じバッチオブジェクトを再利用
@@ -160,7 +184,7 @@ if (batchCount >= 450) {
 }
 ```
 
-### 3.5 ブラウザキャッシュ
+### 3.6 ブラウザキャッシュ
 
 **発生状況**:
 - コード修正後もブラウザに古いJSがキャッシュされている
@@ -170,7 +194,7 @@ if (batchCount >= 450) {
 - `Ctrl+Shift+R` でハードリフレッシュ
 - または DevTools > Application > Storage > Clear site data
 
-### 3.6 【重要】2つの商談編集画面
+### 3.7 【重要】2つの商談編集画面
 
 **発生状況**:
 - DealForm.tsx（ダイアログ）のみ修正して完了と思い込む
@@ -181,6 +205,25 @@ if (batchCount >= 450) {
   - `src/components/DealForm.tsx` - ダイアログ形式
   - `src/pages/DealEdit.tsx` - 独立ページ形式
 - 変更時は両方を確認すること
+
+### 3.8 【重要】従業員名の空白不一致
+
+**発生状況**:
+- TreeBurialDealEditで既存の受付担当者名がドロップダウンで選択できない
+- 既存データは「山田太郎」、マスターは「山田 太郎」
+
+**原因**:
+- 既存データには姓と名の間に空白がない
+- 従業員マスターは空白ありで登録されている
+
+**対応策**:
+```typescript
+// 名前比較時は必ず空白を正規化（半角・全角両方対応）
+const normalizeName = (name: string) => name.replace(/[\s　]+/g, '');
+const matchingEmployee = employees.find(emp =>
+  normalizeName(emp.name) === normalizeName(currentValue)
+);
+```
 
 ---
 
@@ -221,17 +264,26 @@ src/
 |---------|-----|
 | `src/api/customers.ts` | 顧客CRUD API |
 | `src/api/deals.ts` | 商談CRUD API |
+| `src/api/treeBurialDeals.ts` | 樹木墓商談CRUD API |
+| `src/api/burialPersons.ts` | 樹木墓オプションCRUD API |
 | `src/api/relationships.ts` | 関係性CRUD API |
 | `src/pages/Customers.tsx` | 顧客一覧ページ |
 | `src/pages/CustomerDetail.tsx` | 顧客詳細ページ |
 | `src/pages/DealEdit.tsx` | 商談編集ページ |
 | `src/pages/Relationships.tsx` | 関係性一覧ページ |
+| `src/pages/TreeBurialDealList.tsx` | 樹木墓商談一覧 |
+| `src/pages/TreeBurialDealDetail.tsx` | 樹木墓商談詳細 |
+| `src/pages/TreeBurialDealEdit.tsx` | 樹木墓商談編集 |
+| `src/pages/BurialPersonList.tsx` | 樹木墓オプション一覧 |
+| `src/pages/BurialPersonDetail.tsx` | 樹木墓オプション詳細 |
+| `src/pages/TreeBurialSummaryByTemple.tsx` | 寺院別樹木墓集計 |
 | `src/components/DealForm.tsx` | 商談フォームダイアログ |
 | `src/hooks/useAlgoliaSearch.ts` | Algolia検索フック |
 | `src/hooks/useMasters.ts` | マスターデータフック |
 | `src/firebase/config.ts` | Firebase初期化 |
 | `src/lib/algolia.ts` | Algoliaクライアント |
 | `src/data/employees.json` | 従業員マスター |
+| `src/utils/format.ts` | formatCurrency等のフォーマット関数 |
 
 ### 4.4 マスターデータの使い方
 
@@ -388,3 +440,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 |-----|---------|
 | 2025-12-07 | 初版作成、データ移行完了、trackingNo型修正 |
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
+| 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |

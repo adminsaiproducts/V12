@@ -28,10 +28,16 @@ import {
   ExpandMore as ExpandMoreIcon,
   Block as BlockIcon,
   Star as StarIcon,
+  History as HistoryIcon,
+  Park as ParkIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { getCustomerByTrackingNo, updateCustomer } from '../api/customers';
 import { deleteCustomer } from '../lib/customerService';
-import type { Customer } from '../types/firestore';
+import { getTreeBurialDealsByCustomerId } from '../api/treeBurialDeals';
+import { getBurialPersonsByCustomerId } from '../api/burialPersons';
+import type { Customer, TreeBurialDeal, BurialPerson } from '../types/firestore';
+import { TREE_BURIAL_DEAL_STATUS_LABELS } from '../types/firestore';
 import {
   formatAddress,
   getCustomerName,
@@ -41,12 +47,16 @@ import {
   getMemo,
   extractValue,
 } from '../utils/v9DataHelpers';
+import { formatCurrency } from '../utils/format';
 import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
 import { RelationshipCard } from '../components/RelationshipCard';
 import { DealCard } from '../components/DealCard';
 import { DealForm, DealFormData } from '../components/DealForm';
 import { createDeal, updateDeal } from '../api/deals';
 import type { Deal, DealStage } from '../types/firestore';
+import { HistoryDialog } from '../components/HistoryDialog';
+import { useAuth } from '../auth/AuthProvider';
+import type { AuditUser } from '../types/audit';
 
 // 情報表示用のヘルパーコンポーネント
 interface InfoItemProps {
@@ -93,6 +103,7 @@ export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const relationshipsRef = useRef<HTMLDivElement>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,6 +119,16 @@ export function CustomerDetail() {
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [dealFormMode, setDealFormMode] = useState<'create' | 'edit'>('create');
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [treeBurialDeals, setTreeBurialDeals] = useState<TreeBurialDeal[]>([]);
+  const [burialPersons, setBurialPersons] = useState<BurialPerson[]>([]);
+
+  // 現在のユーザー情報をAuditUser形式に変換
+  const currentAuditUser: AuditUser | null = user ? {
+    uid: user.uid,
+    displayName: user.displayName || '',
+    email: user.email || '',
+  } : null;
 
   const fetchCustomer = async () => {
     if (!id) {
@@ -120,9 +141,24 @@ export function CustomerDetail() {
     setError(null);
 
     try {
-      const result = await getCustomerByTrackingNo(id);
+      // まずtrackingNoで検索
+      let result = await getCustomerByTrackingNo(id);
+
+      // trackingNoで見つからない場合、FirestoreドキュメントIDとして検索（フォールバック）
+      if (!result && id.startsWith('customer_')) {
+        const { getCustomerById } = await import('../api/customers');
+        result = await getCustomerById(id);
+      }
+
       if (result) {
         setCustomer(result);
+        // 樹木墓商談と樹木墓オプションを取得
+        const [deals, persons] = await Promise.all([
+          getTreeBurialDealsByCustomerId(result.id),
+          getBurialPersonsByCustomerId(result.id),
+        ]);
+        setTreeBurialDeals(deals);
+        setBurialPersons(persons);
       } else {
         setError('顧客が見つかりません');
       }
@@ -407,7 +443,6 @@ export function CustomerDetail() {
           visitDate: data.visitDate,
           visitFollowUpDate: data.visitFollowUpDate,
           tentativeReservationDate: data.tentativeReservationDate,
-          applicationDate: data.applicationDate,
           contractDate: data.contractDate,
           expectedCloseDate: data.expectedCloseDate,
           paymentDate1: data.paymentDate1,
@@ -447,7 +482,6 @@ export function CustomerDetail() {
           visitDate: data.visitDate,
           visitFollowUpDate: data.visitFollowUpDate,
           tentativeReservationDate: data.tentativeReservationDate,
-          applicationDate: data.applicationDate,
           contractDate: data.contractDate,
           expectedCloseDate: data.expectedCloseDate,
           paymentDate1: data.paymentDate1,
@@ -503,7 +537,6 @@ export function CustomerDetail() {
       visitDate: editingDeal.visitDate,
       visitFollowUpDate: editingDeal.visitFollowUpDate,
       tentativeReservationDate: editingDeal.tentativeReservationDate,
-      applicationDate: editingDeal.applicationDate,
       contractDate: editingDeal.contractDate,
       expectedCloseDate: editingDeal.expectedCloseDate,
       paymentDate1: editingDeal.paymentDate1,
@@ -570,6 +603,13 @@ export function CustomerDetail() {
           顧客一覧に戻る
         </Button>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={() => setHistoryDialogOpen(true)}
+          >
+            履歴
+          </Button>
           <Button
             variant="contained"
             startIcon={<EditIcon />}
@@ -792,6 +832,136 @@ export function CustomerDetail() {
           />
         </Grid>
 
+        {/* 樹木墓商談 */}
+        {treeBurialDeals.length > 0 && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <ParkIcon color="success" />
+                  <Typography variant="h6">樹木墓商談</Typography>
+                  <Chip label={`${treeBurialDeals.length}件`} size="small" />
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {treeBurialDeals.map((deal) => (
+                    <Box
+                      key={deal.id}
+                      sx={{
+                        p: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => navigate(`/tree-burial-deals/${deal.id}`)}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {deal.dealName || deal.userName || '(名称なし)'}
+                        </Typography>
+                        <Chip
+                          label={deal.status ? TREE_BURIAL_DEAL_STATUS_LABELS[deal.status] : '未設定'}
+                          size="small"
+                          color={deal.status === 'contracted' ? 'success' : deal.status === 'lost' ? 'error' : 'default'}
+                        />
+                      </Box>
+                      <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">拠点</Typography>
+                          <Typography variant="body2">{deal.location || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">区画</Typography>
+                          <Typography variant="body2">{deal.plotType || '-'} {deal.plotNumber || ''}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">申込日</Typography>
+                          <Typography variant="body2">{deal.applicationDate || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">金額</Typography>
+                          <Typography variant="body2">
+                            {formatCurrency(deal.totalAmount)}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* 樹木墓オプション（埋葬者） */}
+        {burialPersons.length > 0 && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <PersonIcon color="primary" />
+                  <Typography variant="h6">樹木墓オプション（埋葬者）</Typography>
+                  <Chip label={`${burialPersons.length}件`} size="small" />
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {burialPersons.map((person) => (
+                    <Box
+                      key={person.id}
+                      sx={{
+                        p: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => navigate(`/burial-persons/${person.id}`)}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {person.buriedPersonName || person.userName || '(名称なし)'}
+                        </Typography>
+                        <Chip
+                          label={person.burialStatus === '有' || person.burialStatus === '有り' ? '埋葬済' : '未埋葬'}
+                          size="small"
+                          color={person.burialStatus === '有' || person.burialStatus === '有り' ? 'success' : 'default'}
+                        />
+                      </Box>
+                      <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">使用者</Typography>
+                          <Typography variant="body2">{person.userName || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">続柄</Typography>
+                          <Typography variant="body2">{person.relationshipToUser || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">埋葬日</Typography>
+                          <Typography variant="body2">{person.burialDate || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">区画</Typography>
+                          <Typography variant="body2">{person.plotNumber || '-'}</Typography>
+                        </Grid>
+                      </Grid>
+                      {person.posthumousName && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">戒名</Typography>
+                          <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>{person.posthumousName}</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
         {/* 関係性 */}
         <Grid item xs={12} ref={relationshipsRef} id="relationships">
           <RelationshipCard
@@ -852,6 +1022,19 @@ export function CustomerDetail() {
             customerTrackingNo: customer.trackingNo,
             customerName: name,
           }}
+        />
+      )}
+
+      {/* 履歴ダイアログ */}
+      {customer && (
+        <HistoryDialog
+          open={historyDialogOpen}
+          onClose={() => setHistoryDialogOpen(false)}
+          entityType="Customer"
+          entityId={customer.id}
+          entityName={name}
+          currentUser={currentAuditUser}
+          onRollbackComplete={fetchCustomer}
         />
       )}
 

@@ -21,6 +21,42 @@ const sortByTrackingNoDesc = (hits: AlgoliaCustomerHit[]): AlgoliaCustomerHit[] 
   });
 };
 
+// 管理番号の一致を優先してソート
+const sortWithTrackingNoPriority = (hits: AlgoliaCustomerHit[], query: string): AlgoliaCustomerHit[] => {
+  const trimmedQuery = query.trim();
+
+  // クエリが空の場合は管理番号降順
+  if (!trimmedQuery) {
+    return sortByTrackingNoDesc(hits);
+  }
+
+  return [...hits].sort((a, b) => {
+    const aTrackingNo = a.trackingNo || '';
+    const bTrackingNo = b.trackingNo || '';
+
+    // 管理番号の完全一致を最優先
+    const aExactMatch = aTrackingNo === trimmedQuery;
+    const bExactMatch = bTrackingNo === trimmedQuery;
+    if (aExactMatch && !bExactMatch) return -1;
+    if (!aExactMatch && bExactMatch) return 1;
+
+    // 管理番号の前方一致を次に優先
+    const aStartsWith = aTrackingNo.startsWith(trimmedQuery);
+    const bStartsWith = bTrackingNo.startsWith(trimmedQuery);
+    if (aStartsWith && !bStartsWith) return -1;
+    if (!aStartsWith && bStartsWith) return 1;
+
+    // 管理番号に含まれる場合
+    const aContains = aTrackingNo.includes(trimmedQuery);
+    const bContains = bTrackingNo.includes(trimmedQuery);
+    if (aContains && !bContains) return -1;
+    if (!aContains && bContains) return 1;
+
+    // それ以外はAlgoliaのスコア順（元の順序を維持）
+    return 0;
+  });
+};
+
 export function useAlgoliaSearch(query: string, debounceMs = 300): UseAlgoliaSearchResult {
   const [results, setResults] = useState<AlgoliaCustomerHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,8 +98,8 @@ export function useAlgoliaSearch(query: string, debounceMs = 300): UseAlgoliaSea
       });
       console.log('[Algolia] Results:', { nbHits, hitsCount: hits.length, processingTimeMS });
 
-      // 検索結果も管理番号の大きい順にソート
-      const sortedHits = sortByTrackingNoDesc(hits as AlgoliaCustomerHit[]);
+      // 管理番号の一致を優先してソート
+      const sortedHits = sortWithTrackingNoPriority(hits as AlgoliaCustomerHit[], searchQuery);
       setResults(sortedHits);
       setTotalHits(nbHits);
       setSearchTime(processingTimeMS);

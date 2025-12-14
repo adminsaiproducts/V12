@@ -132,7 +132,7 @@ export const validatePostalCodeAddress = async (
         const json = await response.json();
 
         if (json.status !== 200 || !json.results || json.results.length === 0) {
-            return { isValid: false, message: '郵便番号が見つかりません' };
+            return { isValid: false, message: '郵便番号が間違っている可能性が高いです' };
         }
 
         // Check if any result matches the entered address

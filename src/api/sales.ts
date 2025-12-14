@@ -230,12 +230,130 @@ export function calculateDashboardSummary(records: SalesRecord[]): SalesDashboar
     };
 }
 
-// 金額をフォーマット
-export function formatCurrency(amount: number): string {
-    return `¥${amount.toLocaleString()}`;
+// 金額をフォーマット（共通ユーティリティを再エクスポート）
+export { formatCurrency, formatPercent } from '../utils/format';
+
+// 月でレコードをフィルタリング
+export function filterByMonth(records: SalesRecord[], month: string): SalesRecord[] {
+    return records.filter(r => r.salesMonth === month);
 }
 
-// パーセントをフォーマット
-export function formatPercent(value: number): string {
-    return `${value.toFixed(2)}%`;
+// 寺院でレコードをフィルタリング
+export function filterByTemple(records: SalesRecord[], templeName: string): SalesRecord[] {
+    return records.filter(r => r.templeName === templeName);
+}
+
+// 分類でレコードをフィルタリング
+export function filterBySubCategory(records: SalesRecord[], category: string): SalesRecord[] {
+    return records.filter(r => r.subCategory === category);
+}
+
+// 大分類でレコードをフィルタリング
+export function filterByMainCategory(records: SalesRecord[], category: string): SalesRecord[] {
+    return records.filter(r => r.mainCategory === category);
+}
+
+// 今期（2025/2-2026/1）でレコードをフィルタリング
+export function filterByCurrentFiscalYear(records: SalesRecord[]): SalesRecord[] {
+    return records.filter(r => {
+        if (!r.contractDate) return false;
+        // 契約日をYYYY/MM/DD形式からパース
+        const parts = r.contractDate.split('/');
+        if (parts.length !== 3) return false;
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        // 2025年2月〜2025年12月 または 2026年1月
+        if (year === 2025 && month >= 2) return true;
+        if (year === 2026 && month === 1) return true;
+        return false;
+    });
+}
+
+// エリア×寺院の積み上げグラフ用データ
+export interface AreaTempleStackedData {
+    areas: string[];                    // X軸のエリア名
+    temples: string[];                  // 凡例の寺院名（上位N件 + その他）
+    datasets: {
+        temple: string;
+        data: number[];                 // 各エリアでの申込額
+    }[];
+}
+
+// エリア別・寺院別の積み上げデータを計算（各エリアで上位5寺院 + その他）
+export function calculateAreaTempleStacked(records: SalesRecord[], topN: number = 5): AreaTempleStackedData {
+    // エリア別に寺院ごとの売上を集計
+    const areaTempleMap = new Map<string, Map<string, number>>();
+    const areaTotalMap = new Map<string, number>();
+
+    for (const record of records) {
+        if (!record.area || !record.templeName) continue;
+
+        // エリア別寺院マップ
+        if (!areaTempleMap.has(record.area)) {
+            areaTempleMap.set(record.area, new Map());
+        }
+        const templeMap = areaTempleMap.get(record.area)!;
+        const existing = templeMap.get(record.templeName) || 0;
+        templeMap.set(record.templeName, existing + record.applicationAmount);
+
+        // エリア合計
+        const areaTotal = areaTotalMap.get(record.area) || 0;
+        areaTotalMap.set(record.area, areaTotal + record.applicationAmount);
+    }
+
+    // エリアを売上順にソート
+    const sortedAreas = Array.from(areaTotalMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([area]) => area);
+
+    // 全エリアで登場する寺院の総売上を計算
+    const globalTempleTotal = new Map<string, number>();
+    for (const [, templeMap] of areaTempleMap) {
+        for (const [temple, amount] of templeMap) {
+            const existing = globalTempleTotal.get(temple) || 0;
+            globalTempleTotal.set(temple, existing + amount);
+        }
+    }
+
+    // 上位N寺院を選択
+    const topTemples = Array.from(globalTempleTotal.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, topN)
+        .map(([temple]) => temple);
+
+    // データセットを作成
+    const datasets: { temple: string; data: number[] }[] = [];
+
+    // 上位寺院のデータセット
+    for (const temple of topTemples) {
+        const data = sortedAreas.map(area => {
+            const templeMap = areaTempleMap.get(area);
+            return templeMap?.get(temple) || 0;
+        });
+        datasets.push({ temple, data });
+    }
+
+    // その他（上位以外の合計）
+    const othersData = sortedAreas.map(area => {
+        const templeMap = areaTempleMap.get(area);
+        if (!templeMap) return 0;
+        let others = 0;
+        for (const [temple, amount] of templeMap) {
+            if (!topTemples.includes(temple)) {
+                others += amount;
+            }
+        }
+        return others;
+    });
+
+    // その他が0でない場合のみ追加
+    if (othersData.some(v => v > 0)) {
+        datasets.push({ temple: 'その他', data: othersData });
+    }
+
+    return {
+        areas: sortedAreas,
+        temples: [...topTemples, ...(othersData.some(v => v > 0) ? ['その他'] : [])],
+        datasets,
+    };
 }

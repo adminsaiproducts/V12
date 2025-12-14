@@ -10,26 +10,69 @@ service cloud.firestore {
     // 顧客コレクション
     match /Customers/{customerId} {
       allow read, write: if isAuthenticated();
+
+      // 顧客の履歴サブコレクション（追記のみ、更新・削除不可）
+      match /History/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // 改ざん防止
+      }
     }
 
     // 商談コレクション
     match /Deals/{dealId} {
       allow read, write: if isAuthenticated();
+
+      // 商談の履歴サブコレクション（追記のみ、更新・削除不可）
+      match /History/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // 改ざん防止
+      }
     }
 
     // 寺院コレクション
     match /Temples/{templeId} {
       allow read, write: if isAuthenticated();
+
+      // 寺院の履歴サブコレクション（追記のみ、更新・削除不可）
+      match /History/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // 改ざん防止
+      }
     }
 
     // 関係性コレクション
     match /Relationships/{relationshipId} {
       allow read, write: if isAuthenticated();
+
+      // 関係性の履歴サブコレクション（追記のみ、更新・削除不可）
+      match /History/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // 改ざん防止
+      }
     }
 
     // 活動履歴コレクション
     match /Activities/{activityId} {
       allow read, write: if isAuthenticated();
+
+      // 活動の履歴サブコレクション（追記のみ、更新・削除不可）
+      match /History/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // 改ざん防止
+      }
+    }
+
+    // 監査ログコレクション（追記のみ、更新・削除不可）
+    // 横断的な監査クエリ用の独立コレクション
+    match /AuditLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // 改ざん防止
     }
   }
 }

@@ -1,9 +1,9 @@
 /**
- * 商談編集ページ
+ * 新規商談入力ページ
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -12,31 +12,33 @@ import {
   TextField,
   MenuItem,
   CircularProgress,
-  Alert,
   Snackbar,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   InputAdornment,
+  Autocomplete,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
+  ExpandMore as ExpandMoreIcon,
   Save as SaveIcon,
-  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { getDealById, updateDeal } from '../api/deals';
-import type { DealStage, Deal } from '../types/firestore';
+import { createDeal } from '../api/deals';
+import { getCustomerByTrackingNo } from '../api/customers';
+import { getCustomers } from '../api/customers';
+import type { DealStage, Customer } from '../types/firestore';
 import { DEAL_STAGE_LABELS } from '../types/firestore';
-import { useMaster } from '../hooks/useMasters';
-import { HistoryDialog } from '../components/HistoryDialog';
-import { useAuth } from '../auth/AuthProvider';
-import type { AuditUser } from '../types/audit';
+import { getCustomerName } from '../utils/v9DataHelpers';
 
-// 商談スキーマ
+// 商談スキーマ（顧客情報は必須）
 const dealSchema = z.object({
+  customerId: z.string().min(1, '顧客を選択してください'),
+  customerTrackingNo: z.string().min(1, '顧客を選択してください'),
+  customerName: z.string().min(1, '顧客を選択してください'),
   title: z.string().min(1, '商談名は必須です'),
   stage: z.string().min(1, 'ステージは必須です'),
   probability: z.number().min(0).max(100).optional(),
@@ -54,6 +56,7 @@ const dealSchema = z.object({
   visitDate: z.string().optional(),
   visitFollowUpDate: z.string().optional(),
   tentativeReservationDate: z.string().optional(),
+  applicationDate: z.string().optional(),
   contractDate: z.string().optional(),
   expectedCloseDate: z.string().optional(),
   paymentDate1: z.string().optional(),
@@ -100,119 +103,61 @@ const planOptions = ['2名用', '家族用', '1名用', 'ペアセット', '樹�
 // 流入経路オプション
 const visitRouteOptions = ['WEB', '鎌倉新書', '看板広告', '雑誌', 'チラシ', '紹介', 'リピーター', 'その他'];
 
-export function DealEdit() {
-  const { id } = useParams<{ id: string }>();
+export function DealNew() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const customerTrackingNoParam = searchParams.get('customer');
 
-  // 履歴ダイアログ用の状態
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
-
-  // 現在のユーザーをAuditUser形式に変換
-  const currentAuditUser: AuditUser | undefined = user ? {
-    uid: user.uid,
-    displayName: user.displayName || user.email || 'Unknown',
-    email: user.email || '',
-  } : undefined;
-
-  // 従業員マスターを取得
-  const { master: employeesMaster, loading: employeesLoading } = useMaster('employees');
-
-  // アクティブな従業員のみ取得し、フリガナ昇順でソート
-  const activeEmployees = employeesMaster?.items
-    ? employeesMaster.items
-        .filter(item => item.isActive)
-        .sort((a, b) => (a.furigana || '').localeCompare(b.furigana || '', 'ja'))
-    : [];
-
-  const [deal, setDeal] = useState<Deal | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+  const [expandedSections, setExpandedSections] = useState<string[]>(['basic', 'customer']);
+
   const {
     control,
     handleSubmit,
     watch,
     setValue,
-    reset,
     formState: { errors, isSubmitting },
   } = useForm<DealFormData>({
     resolver: zodResolver(dealSchema),
+    defaultValues: {
+      stage: 'inquiry',
+    },
   });
 
-  // ステージが契約済の場合、確度を100%に自動設定
-  const currentStage = watch('stage');
+  // 顧客一覧を取得
   useEffect(() => {
-    if (currentStage === 'contracted') {
-      setValue('probability', 100);
-    }
-  }, [currentStage, setValue]);
-
-  // 商談データを取得
-  useEffect(() => {
-    const fetchDeal = async () => {
-      if (!id) {
-        setError('商談IDが指定されていません');
-        setLoading(false);
-        return;
-      }
-
+    const fetchCustomers = async () => {
       try {
-        const result = await getDealById(id);
-        if (result) {
-          setDeal(result);
-          // フォームに値を設定
-          reset({
-            title: result.title,
-            stage: result.stage,
-            probability: result.probability,
-            amount: result.amount,
-            templeName: result.templeName || '',
-            productCategory: result.productCategory || '',
-            productSubcategory: result.productSubcategory || '',
-            planName: result.planName || '',
-            visitRoute: result.visitRoute || '',
-            competitor: result.competitor || '',
-            inquiryDate: result.inquiryDate || '',
-            documentSentDate: result.documentSentDate || '',
-            followUpEmailDate: result.followUpEmailDate || '',
-            followUpCallDate: result.followUpCallDate || '',
-            visitDate: result.visitDate || '',
-            visitFollowUpDate: result.visitFollowUpDate || '',
-            tentativeReservationDate: result.tentativeReservationDate || '',
-            contractDate: result.contractDate || '',
-            expectedCloseDate: result.expectedCloseDate || '',
-            paymentDate1: result.paymentDate1 || '',
-            paymentAmount1: result.paymentAmount1,
-            paymentDate2: result.paymentDate2 || '',
-            paymentAmount2: result.paymentAmount2,
-            paymentDate3: result.paymentDate3 || '',
-            paymentAmount3: result.paymentAmount3,
-            totalPayment: result.totalPayment,
-            remainingBalance: result.remainingBalance,
-            assignedTo: result.assignedTo || '',
-            notes: result.notes || '',
-            salesMonth: result.salesMonth || '',
-            deliveryDate: result.deliveryDate || '',
-          });
-        } else {
-          setError('商談が見つかりません');
+        const result = await getCustomers(500);
+        setCustomers(result);
+
+        // URLパラメータで顧客が指定されている場合
+        if (customerTrackingNoParam) {
+          const customer = await getCustomerByTrackingNo(customerTrackingNoParam);
+          if (customer) {
+            setSelectedCustomer(customer);
+            setValue('customerId', customer.id);
+            setValue('customerTrackingNo', customer.trackingNo);
+            setValue('customerName', getCustomerName(customer as unknown as Record<string, unknown>));
+          }
         }
       } catch (err) {
-        setError('商談データの取得に失敗しました');
-        console.error('Error fetching deal:', err);
+        console.error('Error fetching customers:', err);
       } finally {
-        setLoading(false);
+        setCustomersLoading(false);
       }
     };
 
-    fetchDeal();
-  }, [id, reset]);
+    fetchCustomers();
+  }, [customerTrackingNoParam, setValue]);
 
   // 入金合計と残高の自動計算
   const amount = watch('amount');
@@ -228,14 +173,32 @@ export function DealEdit() {
     }
   }, [amount, paymentAmount1, paymentAmount2, paymentAmount3, setValue]);
 
+  const handleAccordionChange = (panel: string) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedSections(prev =>
+      isExpanded ? [...prev, panel] : prev.filter(p => p !== panel)
+    );
+  };
+
+  const handleCustomerChange = (customer: Customer | null) => {
+    setSelectedCustomer(customer);
+    if (customer) {
+      setValue('customerId', customer.id);
+      setValue('customerTrackingNo', customer.trackingNo);
+      setValue('customerName', getCustomerName(customer as unknown as Record<string, unknown>));
+    } else {
+      setValue('customerId', '');
+      setValue('customerTrackingNo', '');
+      setValue('customerName', '');
+    }
+  };
 
   const onSubmit = async (data: DealFormData) => {
-    if (!id) return;
-
-    setSaving(true);
+    setLoading(true);
     try {
-      // undefinedの値を除外（Firestoreはundefinedを受け付けない）
-      const updates: Record<string, unknown> = {
+      const dealId = await createDeal({
+        customerId: data.customerId,
+        customerTrackingNo: data.customerTrackingNo,
+        customerName: data.customerName,
         title: data.title,
         stage: data.stage as DealStage,
         probability: data.probability,
@@ -253,6 +216,7 @@ export function DealEdit() {
         visitDate: data.visitDate,
         visitFollowUpDate: data.visitFollowUpDate,
         tentativeReservationDate: data.tentativeReservationDate,
+        applicationDate: data.applicationDate,
         contractDate: data.contractDate,
         expectedCloseDate: data.expectedCloseDate,
         paymentDate1: data.paymentDate1,
@@ -267,97 +231,98 @@ export function DealEdit() {
         notes: data.notes,
         salesMonth: data.salesMonth,
         deliveryDate: data.deliveryDate,
-      };
-
-      // undefinedの値を除外
-      const cleanedUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([, value]) => value !== undefined)
-      );
-
-      await updateDeal(id, cleanedUpdates, currentAuditUser);
+      });
 
       setSnackbar({
         open: true,
-        message: '商談を更新しました',
+        message: '商談を登録しました',
         severity: 'success',
       });
 
       // 詳細ページに遷移
       setTimeout(() => {
-        navigate(`/deals/${id}`);
+        navigate(`/deals/${dealId}`);
       }, 1000);
     } catch (err) {
-      console.error('Error updating deal:', err);
+      console.error('Error creating deal:', err);
       setSnackbar({
         open: true,
-        message: '商談の更新に失敗しました',
+        message: '商談の登録に失敗しました',
         severity: 'error',
       });
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/deals')}
-          sx={{ mb: 2 }}
-        >
-          商談一覧に戻る
-        </Button>
-        <Alert severity="error">{error}</Alert>
-      </Box>
-    );
-  }
-
-  if (!deal) {
-    return null;
-  }
 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Button
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate(`/deals/${id}`)}
+          onClick={() => navigate('/deals')}
         >
-          商談詳細に戻る
-        </Button>
-        <Button
-          startIcon={<HistoryIcon />}
-          onClick={() => setHistoryDialogOpen(true)}
-          variant="outlined"
-        >
-          履歴
+          商談一覧に戻る
         </Button>
       </Box>
 
       <Typography variant="h4" component="h1" gutterBottom>
-        商談編集
+        新規商談登録
       </Typography>
 
-      {/* 顧客情報（読み取り専用） */}
-      {deal.customerName && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          顧客: {deal.customerName} {deal.customerTrackingNo && `(No. ${deal.customerTrackingNo})`}
-        </Alert>
-      )}
-
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+        {/* 顧客選択 */}
+        <Accordion
+          expanded={expandedSections.includes('customer')}
+          onChange={handleAccordionChange('customer')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle1" fontWeight="bold">顧客選択</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Autocomplete
+                  options={customers}
+                  loading={customersLoading}
+                  value={selectedCustomer}
+                  onChange={(_, value) => handleCustomerChange(value)}
+                  getOptionLabel={(option) =>
+                    `${option.trackingNo} - ${getCustomerName(option as unknown as Record<string, unknown>)}`
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="顧客"
+                      required
+                      error={!!errors.customerId}
+                      helperText={errors.customerId?.message}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {customersLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                />
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
         {/* 基本情報 */}
-        <Accordion expanded sx={{ mb: 2 }}>
-          <AccordionSummary>
+        <Accordion
+          expanded={expandedSections.includes('basic')}
+          onChange={handleAccordionChange('basic')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" fontWeight="bold">基本情報</Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -445,22 +410,7 @@ export function DealEdit() {
                   name="assignedTo"
                   control={control}
                   render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      label="担当者"
-                      fullWidth
-                      disabled={employeesLoading}
-                    >
-                      <MenuItem value="">
-                        <em>選択してください</em>
-                      </MenuItem>
-                      {activeEmployees.map((employee) => (
-                        <MenuItem key={employee.id} value={employee.name}>
-                          {employee.name}{employee.furigana ? ` (${employee.furigana})` : ''}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                    <TextField {...field} label="担当者" fullWidth />
                   )}
                 />
               </Grid>
@@ -469,8 +419,12 @@ export function DealEdit() {
         </Accordion>
 
         {/* 寺院・プラン */}
-        <Accordion expanded sx={{ mb: 2 }}>
-          <AccordionSummary>
+        <Accordion
+          expanded={expandedSections.includes('temple')}
+          onChange={handleAccordionChange('temple')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" fontWeight="bold">寺院・プラン</Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -554,8 +508,12 @@ export function DealEdit() {
         </Accordion>
 
         {/* 進捗日付 */}
-        <Accordion expanded sx={{ mb: 2 }}>
-          <AccordionSummary>
+        <Accordion
+          expanded={expandedSections.includes('dates')}
+          onChange={handleAccordionChange('dates')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" fontWeight="bold">進捗日付</Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -598,6 +556,15 @@ export function DealEdit() {
               </Grid>
               <Grid item xs={6} sm={4}>
                 <Controller
+                  name="applicationDate"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField {...field} label="申込日" fullWidth type="date" InputLabelProps={{ shrink: true }} />
+                  )}
+                />
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <Controller
                   name="contractDate"
                   control={control}
                   render={({ field }) => (
@@ -614,22 +581,17 @@ export function DealEdit() {
                   )}
                 />
               </Grid>
-              <Grid item xs={6} sm={4}>
-                <Controller
-                  name="deliveryDate"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField {...field} label="工事完了引渡日" fullWidth type="date" InputLabelProps={{ shrink: true }} />
-                  )}
-                />
-              </Grid>
             </Grid>
           </AccordionDetails>
         </Accordion>
 
         {/* 入金情報 */}
-        <Accordion expanded sx={{ mb: 2 }}>
-          <AccordionSummary>
+        <Accordion
+          expanded={expandedSections.includes('payment')}
+          onChange={handleAccordionChange('payment')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" fontWeight="bold">入金情報</Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -725,8 +687,12 @@ export function DealEdit() {
         </Accordion>
 
         {/* 備考 */}
-        <Accordion expanded sx={{ mb: 2 }}>
-          <AccordionSummary>
+        <Accordion
+          expanded={expandedSections.includes('notes')}
+          onChange={handleAccordionChange('notes')}
+          sx={{ mb: 2 }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1" fontWeight="bold">備考</Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -748,18 +714,18 @@ export function DealEdit() {
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
           <Button
             variant="outlined"
-            onClick={() => navigate(`/deals/${id}`)}
-            disabled={isSubmitting || saving}
+            onClick={() => navigate('/deals')}
+            disabled={isSubmitting || loading}
           >
             キャンセル
           </Button>
           <Button
             type="submit"
             variant="contained"
-            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-            disabled={isSubmitting || saving}
+            startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+            disabled={isSubmitting || loading}
           >
-            保存
+            登録
           </Button>
         </Box>
       </Box>
@@ -771,18 +737,6 @@ export function DealEdit() {
         onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
         message={snackbar.message}
       />
-
-      {/* 履歴ダイアログ */}
-      {id && (
-        <HistoryDialog
-          open={historyDialogOpen}
-          onClose={() => setHistoryDialogOpen(false)}
-          entityType="Deal"
-          entityId={id}
-          entityName={deal?.title || '商談'}
-          currentUser={currentAuditUser}
-        />
-      )}
     </Box>
   );
 }

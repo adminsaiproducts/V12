@@ -1,33 +1,36 @@
 # CRM V12 現在の状況
 
-**最終更新**: 2025-12-11 JST
+**最終更新**: 2025-12-14 JST
 
-## 現在のステータス: 商談担当者の従業員マスター連携完了
+## 現在のステータス: 寺院別樹木墓集計ページ完成、顧客リンク問題修正完了
 
-### 直近で実施した作業
+### 直近で実施した作業 (2025-12-14)
 
-1. **関係性ページからの顧客詳細遷移機能** (2025-12-11)
-   - 関係性一覧ページの各行をクリックでソース顧客の関係性セクションに遷移
-   - CustomerDetail.tsx に `#relationships` ハッシュでのスクロール機能を追加
-   - 行全体のクリックと、アイコンボタンの個別クリックの両方に対応
+1. **寺院別樹木墓集計ページの作成**
+   - `src/pages/TreeBurialSummaryByTemple.tsx` を新規作成
+   - 月別→寺院別の階層で商談件数、合計金額、彩プロ売上を集計
+   - 寺院行クリックで商談一覧ダイアログ表示
+   - 商談クリックで詳細画面に遷移
+   - メニュー「寺院別樹木墓」からアクセス可能
 
-2. **商談担当者フィールドを従業員マスターに紐づけ** (2025-12-11)
-   - DealForm.tsx (商談ダイアログ) の担当者フィールドをセレクトボックスに変更
-   - DealEdit.tsx (商談編集ページ) の担当者フィールドをセレクトボックスに変更
-   - useMaster('employees') フックを使用してアクティブな従業員のみ表示
+2. **顧客リンクの統一修正（重大な修正）**
+   - 樹木墓商談詳細、樹木墓オプション詳細で顧客リンクが切れていた問題を修正
+   - `linkedCustomer.id`（FirestoreドキュメントID）ではなく`linkedCustomerTrackingNo`を使用するよう修正
+   - CustomerDetailにFirestoreドキュメントID形式へのフォールバックを追加
 
-3. **既存商談データの担当者名を従業員マスター形式に更新** (2025-12-11)
-   - fix-deal-assigned-to.cjs スクリプトを作成・実行
-   - 4,890件の商談データを処理
-   - 「冨田恵」→「冨田 恵」のように、スペースなし形式からスペースあり形式に更新
-   - 対象: 山田真佐世、三宅かおり、冨田恵、山崎由記、石森静穂、遠山裕之、加藤美夢、中島美穂、熊田和美、藤橋靖、中村友可里 など
+3. **樹木葬→樹木墓への名称変更**
+   - 全14ファイルで「樹木葬」を「樹木墓」に変更
+   - 対象: TreeBurialDealEdit, TreeBurialDealList, TreeBurialDealDetail, AppLayout, HistoryDialog等
 
-4. **顧客一覧の並び順を管理番号降順に変更**
-   - useAlgoliaSearch.ts で検索結果をtrackingNo降順でソート
+4. **従業員マスター選択の空白対応**
+   - TreeBurialDealEditで受付担当/埋葬担当を従業員マスターから選択可能に
+   - 既存データに空白がない名前（例:「山田太郎」）でも空白ありマスター（例:「山田 太郎」）にマッチするよう対応
 
-5. **ダッシュボードのテーブル表示改善**
-   - 最新のデータが上に表示されるように変更
-   - 行クリックで詳細ページに遷移
+5. **顧客検索での管理番号優先**
+   - `useAlgoliaSearch.ts`に管理番号の完全一致・前方一致・部分一致の優先順位を追加
+
+6. **金額の3桁区切り表示**
+   - `src/utils/format.ts`に`formatCurrency`を作成し全体で使用
 
 ---
 
@@ -35,13 +38,15 @@
 
 ### 動作確認
 
-1. **商談編集画面で担当者がセレクトボックスになっていることを確認**
-   - 商談一覧から任意の商談を選択し編集画面を開く
-   - 担当者フィールドがドロップダウンになっていることを確認
+1. **寺院別樹木墓ページの確認**
+   - `/tree-burial-summary` にアクセス
+   - 月別アコーディオンを展開し、寺院行をクリック
+   - ダイアログで商談をクリックして詳細画面に遷移することを確認
 
-2. **関係性ページからの遷移を確認**
-   - `/relationships` ページで任意の行をクリック
-   - ソース顧客の詳細ページの関係性セクションにスクロールされることを確認
+2. **顧客リンクの確認**
+   - 樹木墓商談詳細で「顧客詳細へ」をクリック
+   - 樹木墓オプション詳細で紐づけ顧客をクリック
+   - 正しい顧客詳細画面に遷移することを確認
 
 ---
 
@@ -52,60 +57,77 @@
 | サービス | 状態 | データ件数 |
 |---------|------|-----------|
 | Firestore (crm-database-v9) | 正常 | Customers: 10,954件 |
-| Firestore (crm-database-v9) | 正常 | Deals: 4,890件 (担当者名更新済み) |
-| Firestore (crm-database-v9) | 一部問題あり | Relationships: 2,950件 (うち945件が有効) |
+| Firestore (crm-database-v9) | 正常 | Deals: 4,890件 |
+| Firestore (crm-database-v9) | 正常 | TreeBurialDeals: 多数 |
+| Firestore (crm-database-v9) | 正常 | BurialPersons: 多数 |
 | Algolia (customers index) | 正常 | 10,954件 |
 
 ### フロントエンド (V12)
 
 | 項目 | 状態 |
 |-----|------|
-| 開発サーバー | http://localhost:3003 で稼働中 |
+| 開発サーバー | 稼働中 |
 | ビルド | 正常 |
-| HMR | 正常動作 |
 
 ---
 
-## ファイル変更履歴 (今回のセッション: 2025-12-11)
+## ファイル変更履歴 (2025-12-14)
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `src/pages/Relationships.tsx` | 行クリックで顧客詳細へ遷移、stopPropagation追加 |
-| `src/pages/CustomerDetail.tsx` | #relationships ハッシュでのスクロール機能追加 |
-| `src/components/DealForm.tsx` | 担当者フィールドを従業員マスターセレクトボックスに変更 |
-| `src/pages/DealEdit.tsx` | 担当者フィールドを従業員マスターセレクトボックスに変更 |
-| `src/hooks/useAlgoliaSearch.ts` | trackingNo降順ソート追加 |
-| `scripts/fix-deal-assigned-to.cjs` | 商談担当者名更新スクリプト新規作成 |
+| `src/pages/TreeBurialSummaryByTemple.tsx` | **新規作成** - 寺院別樹木墓集計ページ |
+| `src/pages/TreeBurialDealDetail.tsx` | 顧客リンクをtrackingNo使用に修正、名称変更 |
+| `src/pages/TreeBurialDealEdit.tsx` | 受付担当/埋葬担当を従業員マスター選択に、空白正規化対応、名称変更 |
+| `src/pages/BurialPersonDetail.tsx` | 顧客リンクをtrackingNo使用に修正 |
+| `src/pages/CustomerDetail.tsx` | FirestoreドキュメントIDフォールバック追加 |
+| `src/hooks/useAlgoliaSearch.ts` | 管理番号優先ソート追加 |
+| `src/pages/Customers.tsx` | 検索プレースホルダー更新 |
+| `src/components/Layout/AppLayout.tsx` | 「寺院別樹木墓」メニュー追加、名称変更 |
+| `src/App.tsx` | 寺院別樹木墓ルート追加 |
+| `src/utils/format.ts` | formatCurrency追加 |
+| 他14ファイル | 樹木葬→樹木墓の名称変更 |
 
 ---
 
-## 発生した問題と解決策
+## 発生した問題と解決策 (2025-12-14)
 
-### 問題1: 商談編集ページに担当者セレクトが反映されなかった
+### 問題1: 顧客リンクが切れていた（重大）
 
-**原因**:
-- DealForm.tsx (ダイアログ) と DealEdit.tsx (独立ページ) の2つのコンポーネントがあった
-- DealForm.tsx のみを修正したため、DealEdit.tsx には反映されなかった
-
-**解決**:
-- DealEdit.tsx にも同様の useMaster フック導入と TextField select 化を実施
-
-### 問題2: マイグレーションスクリプトの認証エラー
+**症状**:
+- 樹木墓商談詳細/樹木墓オプション詳細で「顧客詳細へ」をクリックすると「顧客が見つかりません」エラー
+- URLが `/customers/customer_11545` のようにFirestoreドキュメントID形式になっていた
 
 **原因**:
-- serviceAccount.json のパスが間違っていた
-- 正しいパスは `V9/crm-appsheet-v7-4cce8f749b52.json`
+- `linkedCustomer.trackingNo || linkedCustomer.id` としていたが、trackingNoがundefinedの場合にFirestoreドキュメントIDが使われた
+- CustomerDetailは`getCustomerByTrackingNo`を使用するためFirestoreドキュメントIDでは見つからない
 
 **解決**:
-- 既存の check-firestore-data.cjs を参考に正しい認証情報を設定
+- `deal.linkedCustomerTrackingNo || linkedCustomer.trackingNo` を使用するよう修正
+- CustomerDetailにフォールバックを追加（`customer_`で始まる場合は`getCustomerById`を試行）
 
-### 問題3: バッチ更新で "Cannot modify committed batch" エラー
+**再発防止策**:
+- **顧客へのリンクは必ず`trackingNo`（管理番号）を使用する**
+- `linkedCustomer.id`は**絶対に**URLに使用しない
+- 紐づけ時に`linkedCustomerTrackingNo`を必ず保存する
+
+### 問題2: 従業員名の空白不一致
+
+**症状**:
+- TreeBurialDealEditで既存の受付担当者名がドロップダウンで選択できない
+- 既存データは「山田太郎」、マスターは「山田 太郎」
 
 **原因**:
-- 450件ごとにバッチをコミット後、新しいバッチを作成していなかった
+- 既存データには姓と名の間に空白がないが、従業員マスターは空白ありで登録されている
 
 **解決**:
-- `batch = db.batch()` でコミット後に新しいバッチを作成するよう修正
+```typescript
+const normalizeName = (name: string) => name.replace(/[\s　]+/g, '');
+const matchingEmployee = employees.find(emp => normalizeName(emp.name) === normalizeName(currentValue));
+```
+
+**再発防止策**:
+- 名前の比較時は必ず空白を正規化してから比較する
+- 半角・全角スペースの両方を考慮（`/[\s　]+/g`）
 
 ---
 
@@ -115,17 +137,27 @@
 # 開発サーバー起動
 cd V12 && npm run dev
 
-# Firestoreデータ確認
-cd V12 && node scripts/check-firestore-data.cjs
-
-# 商談担当者名を従業員マスター形式に更新（実行済み）
-cd V12 && node scripts/fix-deal-assigned-to.cjs
+# ビルド確認
+cd V12 && npm run build
 ```
+
+---
+
+## 主要な画面URL
+
+| 画面 | URL |
+|-----|-----|
+| 顧客一覧 | /customers |
+| 商談一覧 | /deals |
+| 樹木墓商談一覧 | /tree-burial-deals |
+| 樹木墓オプション一覧 | /burial-persons |
+| 寺院別樹木墓 | /tree-burial-summary |
+| 売上管理表 | /sales-report |
 
 ---
 
 ## 備考
 
-- 商談の担当者名は従業員マスターの正式名（姓と名の間にスペースあり）に統一された
-- 新規商談作成・編集時は従業員マスターからの選択のみ可能
-- 関係性一覧ページの行クリックで顧客詳細の関係性セクションに直接遷移可能
+- 「樹木葬」は正式名称「樹木墓」に変更済み
+- 顧客リンクは全て管理番号（trackingNo）ベースに統一
+- 金額表示は全て3桁区切りで統一

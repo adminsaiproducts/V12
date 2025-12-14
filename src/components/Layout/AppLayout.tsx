@@ -22,6 +22,14 @@ import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   Logout as LogoutIcon,
+  Settings as SettingsIcon,
+  Handshake as HandshakeIcon,
+  AccountTree as AccountTreeIcon,
+  TableChart as TableChartIcon,
+  Park as ParkIcon,
+  Person as PersonIcon,
+  Link as LinkIcon,
+  AccountBalance as AccountBalanceIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -31,6 +39,14 @@ const DRAWER_WIDTH = 240;
 const menuItems = [
   { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
   { text: '顧客', icon: <PeopleIcon />, path: '/customers' },
+  { text: '商談', icon: <HandshakeIcon />, path: '/deals' },
+  { text: '樹木墓商談', icon: <ParkIcon />, path: '/tree-burial-deals' },
+  { text: '樹木墓オプション', icon: <PersonIcon />, path: '/burial-persons' },
+  { text: '寺院別樹木墓', icon: <AccountBalanceIcon />, path: '/tree-burial-summary' },
+  { text: '樹木墓紐づけ', icon: <LinkIcon />, path: '/admin/tree-burial-deal-link' },
+  { text: '売上管理表', icon: <TableChartIcon />, path: '/sales-report' },
+  { text: '関係性', icon: <AccountTreeIcon />, path: '/relationships' },
+  { text: 'マスター管理', icon: <SettingsIcon />, path: '/masters' },
 ];
 
 export function AppLayout() {

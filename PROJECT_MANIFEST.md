@@ -1,7 +1,7 @@
 # CRM V12 プロジェクトマニフェスト
 
 **バージョン**: 12.0.0
-**最終更新**: 2025-12-11
+**最終更新**: 2025-12-14
 
 ## プロジェクト概要
 
@@ -76,11 +76,18 @@ V12/
 │   │   ├── DealList.tsx        # 商談一覧
 │   │   ├── DealEdit.tsx        # 商談編集
 │   │   ├── Relationships.tsx   # 関係性一覧
+│   │   ├── TreeBurialDealList.tsx      # 樹木墓商談一覧
+│   │   ├── TreeBurialDealDetail.tsx    # 樹木墓商談詳細
+│   │   ├── TreeBurialDealEdit.tsx      # 樹木墓商談編集
+│   │   ├── BurialPersonList.tsx        # 樹木墓オプション一覧
+│   │   ├── BurialPersonDetail.tsx      # 樹木墓オプション詳細
+│   │   ├── TreeBurialSummaryByTemple.tsx # 寺院別樹木墓集計
 │   │   └── ...
 │   ├── firebase/         # Firebase設定
 │   │   └── config.ts     # Firebase初期化 (databaseId: crm-database-v9)
 │   ├── types/            # TypeScript型定義
 │   └── utils/            # ユーティリティ関数
+│       └── format.ts     # formatCurrency等
 ├── scripts/              # 管理スクリプト
 │   ├── migrate-geniee-csv.cjs      # GENIEE CSVからの移行
 │   ├── sync-firestore-to-algolia.cjs # Algolia同期
@@ -114,6 +121,8 @@ V12/
 |-------------|-----|
 | Customers | 顧客情報 |
 | Deals | 商談情報 |
+| TreeBurialDeals | 樹木墓商談 |
+| BurialPersons | 樹木墓オプション（埋葬者情報） |
 | Relationships | 顧客間関係性 |
 | Temples | 寺院情報 |
 | Activities | 活動履歴 |
@@ -305,6 +314,29 @@ node scripts/check-algolia.cjs         # Algolia
 
 ## 既知の問題と対応策
 
+### 【最重要】顧客リンクはtrackingNoを使用する
+
+**問題**: 顧客へのリンクで`linkedCustomer.id`（Firestore ドキュメントID）を使用すると、CustomerDetailで「顧客が見つかりません」エラーになる
+
+**原因**:
+- `linkedCustomer.id`は`customer_11545`形式（FirestoreドキュメントID）
+- CustomerDetailは`getCustomerByTrackingNo`を使用しており、`11545`形式（trackingNo）を期待
+- この2つは異なる形式のため、マッチしない
+
+**正しい実装**:
+```typescript
+// 顧客へのリンクは必ずtrackingNoを使用
+navigate(`/customers/${deal.linkedCustomerTrackingNo || linkedCustomer.trackingNo}`)
+
+// ❌ 間違った実装（絶対に使わない）
+navigate(`/customers/${linkedCustomer.id}`)
+```
+
+**再発防止策**:
+- 顧客URLには**常に`trackingNo`（管理番号）**を使用
+- `linkedCustomer.id`は**URLに使用しない**
+- 紐づけ時は`linkedCustomerTrackingNo`フィールドを必ず保存
+
 ### trackingNoの型不整合
 
 **問題**: Firestoreに数値と文字列が混在
@@ -321,6 +353,21 @@ node scripts/check-algolia.cjs         # Algolia
 **問題**: 2,005件がtargetCustomerId=null
 **対応**: APIでnullチェックを追加し有効なデータのみ表示
 **恒久対応**: 将来的に顧客名マッチングを改善
+
+### 従業員名の空白不一致
+
+**問題**: 既存データは「山田太郎」（空白なし）、従業員マスターは「山田 太郎」（空白あり）で比較がマッチしない
+
+**対応策**:
+```typescript
+// 名前比較時は必ず空白を正規化
+const normalizeName = (name: string) => name.replace(/[\s　]+/g, '');
+const matchingEmployee = employees.find(emp =>
+  normalizeName(emp.name) === normalizeName(currentValue)
+);
+```
+
+**注意**: 半角スペース`\s`と全角スペース`　`の両方を考慮すること
 
 ---
 

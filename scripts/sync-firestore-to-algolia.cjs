@@ -99,8 +99,12 @@ async function syncFirestoreToAlgolia() {
 
   // crm-database-v9 データベースを指定
   const db = admin.firestore();
-  db.settings({ databaseId: FIRESTORE_DATABASE_ID });
+  db.settings({
+    databaseId: FIRESTORE_DATABASE_ID,
+    ignoreUndefinedProperties: true
+  });
   console.log('   Firebase Admin 初期化完了\n');
+  console.log(`   Database ID: ${FIRESTORE_DATABASE_ID}\n`);
 
   // Firestoreから全顧客データを取得
   console.log('📥 Firestoreから顧客データを取得中...');
@@ -111,6 +115,11 @@ async function syncFirestoreToAlgolia() {
   // Algolia初期化
   const algoliaClient = algoliasearch.default(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
   const index = algoliaClient.initIndex(ALGOLIA_INDEX_NAME);
+
+  // 既存のデータをクリア
+  console.log('🗑️ Algoliaの既存データをクリア中...');
+  await index.clearObjects();
+  console.log('   クリア完了\n');
 
   // デバッグ: 最初の3件のアドレスを表示
   console.log('📋 サンプルデータ確認:');
@@ -141,7 +150,7 @@ async function syncFirestoreToAlgolia() {
       address: formatAddress(data.address),
       addressPrefecture: getStringValue(data.address?.prefecture),
       addressCity: getStringValue(data.address?.city),
-      memo: typeof data.memo === 'object' ? getStringValue(data.memo) : (data.memo || ''),
+      memo: data.notes || '',  // Firestoreでは「notes」フィールドとして保存
       status: data.status || '',
       createdAt: data.createdAt || '',
       updatedAt: data.updatedAt || '',
@@ -194,13 +203,15 @@ async function syncFirestoreToAlgolia() {
       'address',
       'addressPrefecture',
       'addressCity',
-      'status'
+      'status',
+      'memo'
     ],
     // ハイライト設定
     attributesToHighlight: [
       'name',
       'nameKana',
-      'address'
+      'address',
+      'memo'
     ],
     // ファセット（フィルタリング用）
     attributesForFaceting: [
