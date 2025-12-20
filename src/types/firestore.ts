@@ -44,6 +44,23 @@ export interface CustomerNeeds {
   otherConsultation?: string;
 }
 
+/**
+ * 顧客区分
+ */
+export type CustomerCategory = 'individual' | 'corporation' | 'professional';
+
+export const CUSTOMER_CATEGORY_LABELS: Record<CustomerCategory, string> = {
+  individual: '個人',
+  corporation: '法人',
+  professional: '士業',
+};
+
+export const CUSTOMER_CATEGORY_OPTIONS: { value: CustomerCategory; label: string }[] = [
+  { value: 'individual', label: '個人' },
+  { value: 'corporation', label: '法人' },
+  { value: 'professional', label: '士業（弁護士・司法書士等）' },
+];
+
 export interface Customer {
   id: string;
 
@@ -60,6 +77,7 @@ export interface Customer {
   gender?: string;
   age?: number | string;
   type?: 'CORPORATION' | 'INDIVIDUAL';
+  customerCategory?: CustomerCategory;
 
   // 連絡先
   phone?: string;
@@ -94,6 +112,11 @@ export interface Customer {
   dealCount?: number;
   lastActivityDate?: string;
   lastTransactionDate?: string;
+
+  // 商談有無フラグ（顧客一覧表示用）
+  hasDeals?: boolean;  // 一般商談（樹木墓以外）有無
+  hasTreeBurialDeals?: boolean;  // 樹木墓商談有無
+  hasBurialPersons?: boolean;  // 樹木墓オプション（埋葬者）有無
 
   // その他
   category?: string;
@@ -274,6 +297,78 @@ export interface Activity {
 }
 
 /**
+ * 活動区分
+ */
+export type ActivityCategory =
+  | '説明のみ'
+  | '資料送付'
+  | '見学（案内無し）'
+  | '見学（案内有り）'
+  | '電話アポ'
+  | 'メールアポ'
+  | 'その他';
+
+export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  '説明のみ': '説明のみ',
+  '資料送付': '資料送付',
+  '見学（案内無し）': '見学（案内無し）',
+  '見学（案内有り）': '見学（案内有り）',
+  '電話アポ': '電話アポ',
+  'メールアポ': 'メールアポ',
+  'その他': 'その他',
+};
+
+/**
+ * Firestore ActivityHistory document type
+ * geniee CRMからインポートした活動履歴データ
+ */
+export interface ActivityHistory {
+  id: string;
+
+  // geniee CRM識別情報
+  recordId: string;  // レコードID
+
+  // 活動基本情報
+  subject: string;  // 件名
+  activityDate: string;  // 活動期日
+  activityCategory: string;  // 活動区分（説明のみ、資料送付、見学等）
+  activityDetail?: string;  // 活動詳細
+
+  // 担当者情報
+  receptionist?: string;  // 受付担当者
+  receptionistCode?: string;  // 受付担当者コード（従業員マスター紐づけ）
+
+  // 顧客情報
+  userName?: string;  // 使用者名
+  trackingNo?: string;  // 追客NO
+  linkedCustomerId?: string;  // 紐づけられた顧客ID
+  linkedCustomerTrackingNo?: string;  // 紐づけられた追客No
+
+  // 拠点情報
+  location?: string;  // メイン拠点
+  locationCode?: string;  // 拠点コード（寺院マスター紐づけ）
+  targetLocations?: string;  // 対象拠点を全て選択（複数選択可）
+
+  // 来寺経緯
+  visitRoute?: string;  // 来寺経緯
+  visitRouteCode?: string;  // 来寺経緯コード（来寺経緯マスター紐づけ）
+
+  // 商談情報
+  dealName?: string;  // 商談
+
+  // その他
+  firstTimeOnly?: string;  // 初回のみ選択
+  role?: string;  // ロール
+
+  // タイムスタンプ
+  customerCreatedAt?: string;  // 顧客作成日時
+  genieCreatedAt?: string;  // geniee作成日時
+  genieUpdatedAt?: string;  // geniee更新日時
+  createdAt?: string;  // V12インポート日時
+  updatedAt?: string;  // V12更新日時
+}
+
+/**
  * 樹木墓商談ステータス
  */
 export type TreeBurialDealStatus =
@@ -431,6 +526,138 @@ export interface TreeBurialDeal {
   lastActivityAt?: string;  // 最終活動日時
   createdAt?: string;  // V12インポート日時
   updatedAt?: string;  // V12更新日時
+}
+
+/**
+ * 商談（樹木墓以外）
+ * 建墓、広報、埋葬彫刻、シニアライフサポート、墓じまい、駐車場収入等
+ */
+export interface GeneralSalesDeal {
+  id: string;
+
+  // 契約情報
+  contractDate?: string;  // 契約日
+  contractorName: string;  // 契約者
+
+  // 寺院・エリア
+  templeName: string;  // 寺院名
+  area?: string;  // エリア
+
+  // 金額情報
+  applicationAmount?: number;  // 申込実績
+
+  // 入金情報1
+  paymentDate1?: string;  // 入金日１
+  paymentAmount1?: number;  // 入金額１
+
+  // 入金情報2
+  paymentDate2?: string;  // 入金日２
+  paymentAmount2?: number;  // 入金額２
+
+  // 入金情報3
+  paymentDate3?: string;  // 入金日３
+  paymentAmount3?: number;  // 入金額３
+
+  // 合計
+  totalPayment?: number;  // 入金合計
+  remainingBalance?: number;  // 残金
+
+  // 分類
+  subCategory: string;  // 小分類（建墓、広報、埋葬彫刻、シニアライフサポート、墓じまい、駐車場収入、Web、その他）
+  majorCategory: string;  // 大分類（建墓、広報、その他、シニアライフサポート、墓じまい）
+
+  // その他
+  notes?: string;  // 備考
+  inputOrder?: number;  // 入力順
+
+  // タイムスタンプ
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * 商談（樹木墓以外）大分類
+ */
+export type GeneralSalesMajorCategory =
+  | '建墓'
+  | '広報'
+  | '墓じまい'
+  | 'シニアライフサポート'
+  | 'その他';
+
+export const GENERAL_SALES_MAJOR_CATEGORIES: GeneralSalesMajorCategory[] = [
+  '建墓',
+  '広報',
+  '墓じまい',
+  'シニアライフサポート',
+  'その他',
+];
+
+/**
+ * 商談（樹木墓以外）小分類
+ */
+export type GeneralSalesSubCategory =
+  | '建墓'
+  | '広報'
+  | '埋葬彫刻'
+  | 'シニアライフサポート'
+  | '墓じまい'
+  | '駐車場収入'
+  | 'Web'
+  | '海洋散骨'
+  | 'その他';
+
+export const GENERAL_SALES_SUB_CATEGORIES: GeneralSalesSubCategory[] = [
+  '建墓',
+  '広報',
+  '埋葬彫刻',
+  'シニアライフサポート',
+  '墓じまい',
+  '駐車場収入',
+  'Web',
+  '海洋散骨',
+  'その他',
+];
+
+/**
+ * 統合売上レコード（売上管理表・ダッシュボード用）
+ * TreeBurialDeal と GeneralSalesDeal を統一したフォーマット
+ */
+export interface UnifiedSalesRecord {
+  id: string;
+  sourceType: 'treeBurial' | 'general';  // データソース種別
+  sourceId: string;  // 元データのID
+
+  // 追客No（顧客紐づけ用）
+  trackingNo?: string;  // 追客No
+
+  // 契約情報
+  contractDate: string;  // 契約日（YYYY-MM-DD形式）
+  contractorName: string;  // 契約者名
+  templeName: string;  // 寺院名/拠点名
+  area?: string;  // エリア
+
+  // 金額情報
+  applicationAmount: number;  // 申込実績（売上金額）
+  paymentDate1?: string;  // 入金日１
+  paymentAmount1?: number;  // 入金額１
+  paymentDate2?: string;  // 入金日２
+  paymentAmount2?: number;  // 入金額２
+  paymentDate3?: string;  // 入金日３
+  paymentAmount3?: number;  // 入金額３
+  totalPayment?: number;  // 入金合計
+  remainingBalance?: number;  // 残金
+
+  // 分類情報
+  majorCategory: string;  // 大分類
+  subCategory: string;  // 小分類
+
+  // その他
+  notes?: string;  // 備考
+
+  // タイムスタンプ
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**

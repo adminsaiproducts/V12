@@ -1,6 +1,6 @@
 # CRM V12 開発ガイド
 
-**最終更新**: 2025-12-14
+**最終更新**: 2025-12-20
 
 このドキュメントは、CRM V12 の開発を再開する際に必要な情報をまとめています。
 
@@ -51,7 +51,27 @@ node scripts/migrate-geniee-csv.cjs --csv "C:\path\to\geniee-export.csv"
 node scripts/sync-firestore-to-algolia.cjs
 ```
 
-### 2.2 商談担当者名の更新
+### 2.2 顧客商談フラグ更新
+
+顧客が各種商談を持っているかのフラグを計算・更新:
+
+```bash
+# ドライラン（確認のみ）
+node scripts/update-customer-deal-flags.cjs --dry-run
+
+# 本番実行
+node scripts/update-customer-deal-flags.cjs
+
+# 実行後はAlgolia同期も必要
+node scripts/sync-firestore-to-algolia.cjs
+```
+
+このスクリプトは以下のフラグを更新:
+- `hasDeals`: 一般商談（Dealsコレクション）との紐づけ有無
+- `hasTreeBurialDeals`: 樹木墓商談（TreeBurialDealsコレクション）との紐づけ有無
+- `hasBurialPersons`: 樹木墓オプション（BurialPersonsコレクション）との紐づけ有無
+
+### 2.3 商談担当者名の更新
 
 既存商談の担当者名を従業員マスターの正式名形式に更新:
 
@@ -225,6 +245,32 @@ const matchingEmployee = employees.find(emp =>
 );
 ```
 
+### 3.9 【重要】BurialPersonsの顧客紐づけフィールド名の違い
+
+**発生状況**:
+- 商談フラグ計算スクリプトで、BurialPersonsから顧客紐づけを取得しようとしたところ0件
+
+**原因**:
+- Deals/TreeBurialDeals: `linkedCustomerTrackingNo` フィールドを使用
+- BurialPersons: `linkedCustomerId` フィールドを使用（形式: `customer_XXXXX`）
+
+**対応策**:
+```javascript
+// BurialPersonsの場合は両方のフィールドを確認
+if (data.linkedCustomerTrackingNo) {
+  customerWithBurialPersons.add(data.linkedCustomerTrackingNo);
+} else if (data.linkedCustomerId) {
+  // customer_XXXXX 形式からtrackingNoを抽出
+  const trackingNo = data.linkedCustomerId.replace('customer_', '');
+  customerWithBurialPersons.add(trackingNo);
+}
+```
+
+**チェックリスト**:
+- [ ] 新しいコレクションを扱う前にサンプルデータを確認
+- [ ] 顧客紐づけフィールド名がコレクションによって異なる可能性を考慮
+- [ ] `linkedCustomerId`は`customer_`プレフィックス付きであることに注意
+
 ---
 
 ## 4. コードベースの重要ポイント
@@ -281,9 +327,11 @@ src/
 | `src/hooks/useAlgoliaSearch.ts` | Algolia検索フック |
 | `src/hooks/useMasters.ts` | マスターデータフック |
 | `src/firebase/config.ts` | Firebase初期化 |
-| `src/lib/algolia.ts` | Algoliaクライアント |
+| `src/lib/algolia.ts` | Algoliaクライアント、AlgoliaCustomerHit型 |
 | `src/data/employees.json` | 従業員マスター |
 | `src/utils/format.ts` | formatCurrency等のフォーマット関数 |
+| `scripts/update-customer-deal-flags.cjs` | 顧客商談フラグ更新スクリプト |
+| `scripts/sync-firestore-to-algolia.cjs` | Firestore→Algolia同期スクリプト |
 
 ### 4.4 マスターデータの使い方
 
@@ -441,3 +489,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-07 | 初版作成、データ移行完了、trackingNo型修正 |
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
+| 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |

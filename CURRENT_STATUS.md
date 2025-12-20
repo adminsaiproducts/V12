@@ -1,8 +1,36 @@
 # CRM V12 現在の状況
 
-**最終更新**: 2025-12-14 JST
+**最終更新**: 2025-12-20 JST
 
-## 現在のステータス: 寺院別樹木墓集計ページ完成、顧客リンク問題修正完了
+## 現在のステータス: 顧客一覧ページ改善完了（拠点・商談アイコン追加）
+
+### 直近で実施した作業 (2025-12-20)
+
+1. **顧客区分をAlgoliaに同期**
+   - `customerCategory` (individual/corporation/professional) をAlgoliaに追加
+   - Firestoreで10,998件分類済み
+
+2. **顧客一覧ページの改善**
+   - 「拠点」列を追加
+   - 商談有無を色分けアイコンで表示:
+     - 📄 青: 一般商談あり (`hasDeals`)
+     - 🌲 緑: 樹木墓商談あり (`hasTreeBurialDeals`)
+     - 👤 オレンジ: 樹木墓オプションあり (`hasBurialPersons`)
+
+3. **商談フラグ計算スクリプト作成**
+   - `scripts/update-customer-deal-flags.cjs` を新規作成
+   - 3つのコレクション（Deals, TreeBurialDeals, BurialPersons）から顧客紐づけを集計
+   - 10,998件の顧客フラグを更新
+
+4. **Algolia同期スクリプト更新**
+   - `branch`, `hasDeals`, `hasTreeBurialDeals`, `hasBurialPersons` を追加
+   - ファセット（フィルタリング用）属性に追加
+
+5. **型定義の更新**
+   - `src/types/firestore.ts`: Customer型に商談フラグ追加
+   - `src/lib/algolia.ts`: AlgoliaCustomerHit型と検索オプション更新
+
+---
 
 ### 直近で実施した作業 (2025-12-14)
 
@@ -56,11 +84,11 @@
 
 | サービス | 状態 | データ件数 |
 |---------|------|-----------|
-| Firestore (crm-database-v9) | 正常 | Customers: 10,954件 |
-| Firestore (crm-database-v9) | 正常 | Deals: 4,890件 |
-| Firestore (crm-database-v9) | 正常 | TreeBurialDeals: 多数 |
-| Firestore (crm-database-v9) | 正常 | BurialPersons: 多数 |
-| Algolia (customers index) | 正常 | 10,954件 |
+| Firestore (crm-database-v9) | 正常 | Customers: 10,998件 |
+| Firestore (crm-database-v9) | 正常 | Deals: 0件（未インポート）|
+| Firestore (crm-database-v9) | 正常 | TreeBurialDeals: 2,362件（顧客紐づけ済み）|
+| Firestore (crm-database-v9) | 正常 | BurialPersons: 2,090件（顧客紐づけ済み）|
+| Algolia (customers index) | 正常 | 10,998件 |
 
 ### フロントエンド (V12)
 
@@ -68,6 +96,18 @@
 |-----|------|
 | 開発サーバー | 稼働中 |
 | ビルド | 正常 |
+
+---
+
+## ファイル変更履歴 (2025-12-20)
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/pages/Customers.tsx` | 拠点列追加、商談アイコン表示追加 |
+| `src/types/firestore.ts` | Customer型に商談フラグ追加（hasDeals, hasTreeBurialDeals, hasBurialPersons）|
+| `src/lib/algolia.ts` | AlgoliaCustomerHit型更新、検索オプションに新フィールド追加 |
+| `scripts/update-customer-deal-flags.cjs` | **新規作成** - 商談有無フラグ計算スクリプト |
+| `scripts/sync-firestore-to-algolia.cjs` | branch, 商談フラグをAlgoliaに同期 |
 
 ---
 
@@ -86,6 +126,36 @@
 | `src/App.tsx` | 寺院別樹木墓ルート追加 |
 | `src/utils/format.ts` | formatCurrency追加 |
 | 他14ファイル | 樹木葬→樹木墓の名称変更 |
+
+---
+
+## 発生した問題と解決策 (2025-12-20)
+
+### 問題1: BurialPersonsの顧客紐づけフィールド名の違い
+
+**症状**:
+- 商談フラグ計算スクリプトで、BurialPersonsから顧客紐づけを取得しようとしたところ0件
+
+**原因**:
+- Deals/TreeBurialDeals: `linkedCustomerTrackingNo` フィールドを使用
+- BurialPersons: `linkedCustomerId` フィールドを使用（形式: `customer_XXXXX`）
+
+**解決**:
+```javascript
+// BurialPersonsの場合
+if (data.linkedCustomerTrackingNo) {
+  customerWithBurialPersons.add(data.linkedCustomerTrackingNo);
+} else if (data.linkedCustomerId) {
+  // customer_XXXXX 形式からtrackingNoを抽出
+  const trackingNo = data.linkedCustomerId.replace('customer_', '');
+  customerWithBurialPersons.add(trackingNo);
+}
+```
+
+**再発防止策**:
+- コレクションごとに顧客紐づけフィールド名が異なる可能性を意識する
+- `linkedCustomerId`は`customer_`プレフィックス付きの形式であることに注意
+- 新規スクリプト作成時はサンプルデータを確認してからロジックを組む
 
 ---
 

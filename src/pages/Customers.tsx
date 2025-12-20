@@ -17,8 +17,15 @@ import {
   Chip,
   Button,
   Snackbar,
+  Tooltip,
 } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
+import {
+  Search as SearchIcon,
+  Add as AddIcon,
+  Description as DescriptionIcon,
+  Park as ParkIcon,
+  Person as PersonIcon,
+} from '@mui/icons-material';
 import { useAlgoliaSearch } from '../hooks/useAlgoliaSearch';
 import { CustomerForm, CustomerFormData } from '../components/CustomerForm';
 import { createCustomer } from '../lib/customerService';
@@ -103,7 +110,7 @@ export function Customers() {
       const trackingNo = await createCustomer(data);
       setSnackbar({
         open: true,
-        message: `顧客「${data.name}」を登録しました（管理番号: ${trackingNo}）`,
+        message: `顧客「${data.name}」を登録しました（追客No: ${trackingNo}）`,
         severity: 'success',
       });
       setCreateDialogOpen(false);
@@ -151,7 +158,7 @@ export function Customers() {
         <Box>
           <TextField
             fullWidth
-            placeholder="管理番号・顧客名・フリガナ・電話番号・住所で検索..."
+            placeholder="追客No・顧客名・フリガナ・電話番号・住所で検索..."
             value={searchQuery}
             onChange={handleSearchChange}
             InputProps={{
@@ -211,8 +218,10 @@ export function Customers() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>管理番号</TableCell>
+                    <TableCell>追客No</TableCell>
                     <TableCell>顧客名</TableCell>
+                    <TableCell>拠点</TableCell>
+                    <TableCell align="center">商談</TableCell>
                     <TableCell>電話番号</TableCell>
                     <TableCell>住所</TableCell>
                   </TableRow>
@@ -237,6 +246,26 @@ export function Customers() {
                           customer.name || '-'
                         )}
                       </TableCell>
+                      <TableCell>{customer.branch || '-'}</TableCell>
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                          {customer.hasDeals && (
+                            <Tooltip title="一般商談あり">
+                              <DescriptionIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                            </Tooltip>
+                          )}
+                          {customer.hasTreeBurialDeals && (
+                            <Tooltip title="樹木墓商談あり">
+                              <ParkIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                            </Tooltip>
+                          )}
+                          {customer.hasBurialPersons && (
+                            <Tooltip title="樹木墓オプションあり">
+                              <PersonIcon sx={{ fontSize: 18, color: 'warning.main' }} />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
                       <TableCell>{customer.phoneOriginal || customer.phone || '-'}</TableCell>
                       <TableCell>
                         {customer._highlightResult?.address?.matchLevel !== 'none' ? (
@@ -253,7 +282,7 @@ export function Customers() {
                   ))}
                   {results.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} align="center">
+                      <TableCell colSpan={6} align="center">
                         {searchQuery ? '検索条件に一致する顧客が見つかりません' : '顧客が見つかりません'}
                       </TableCell>
                     </TableRow>

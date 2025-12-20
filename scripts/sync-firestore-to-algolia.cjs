@@ -138,20 +138,29 @@ async function syncFirestoreToAlgolia() {
     const firestoreId = doc.id;
 
     // 検索用に正規化したフィールドを追加
+    // trackingNoを数値に変換（ソート用）
+    const trackingNoNumeric = parseInt(data.trackingNo, 10) || 0;
+
     const record = {
       objectID: data.trackingNo || firestoreId,  // Algolia必須
       firestoreId: firestoreId,                   // Firestore IDも保存
       trackingNo: data.trackingNo || '',
+      trackingNoNumeric: trackingNoNumeric,       // 数値ソート用
       name: data.name || '',
       nameKana: data.nameKana || '',
       phone: normalizePhone(data.phone),
-      phoneOriginal: typeof data.phone === 'object' ? data.phone.original : data.phone,
+      phoneOriginal: (data.phone && typeof data.phone === 'object') ? data.phone.original : (data.phone || ''),
       email: typeof data.email === 'object' ? getStringValue(data.email) : (data.email || ''),
       address: formatAddress(data.address),
       addressPrefecture: getStringValue(data.address?.prefecture),
       addressCity: getStringValue(data.address?.city),
       memo: data.notes || '',  // Firestoreでは「notes」フィールドとして保存
       status: data.status || '',
+      customerCategory: data.customerCategory || '',  // 顧客区分
+      branch: data.branch || '',  // 拠点名
+      hasDeals: data.hasDeals || false,  // 一般商談有無
+      hasTreeBurialDeals: data.hasTreeBurialDeals || false,  // 樹木墓商談有無
+      hasBurialPersons: data.hasBurialPersons || false,  // 樹木墓オプション有無
       createdAt: data.createdAt || '',
       updatedAt: data.updatedAt || '',
 
@@ -190,11 +199,14 @@ async function syncFirestoreToAlgolia() {
       'email',
       'memo'
     ],
+    // カスタムランキング（管理番号の大きい順で表示）
+    customRanking: ['desc(trackingNoNumeric)'],
     // 表示用の属性
     attributesToRetrieve: [
       'objectID',
       'firestoreId',
       'trackingNo',
+      'trackingNoNumeric',
       'name',
       'nameKana',
       'phone',
@@ -204,6 +216,11 @@ async function syncFirestoreToAlgolia() {
       'addressPrefecture',
       'addressCity',
       'status',
+      'customerCategory',
+      'branch',
+      'hasDeals',
+      'hasTreeBurialDeals',
+      'hasBurialPersons',
       'memo'
     ],
     // ハイライト設定
@@ -216,7 +233,12 @@ async function syncFirestoreToAlgolia() {
     // ファセット（フィルタリング用）
     attributesForFaceting: [
       'addressPrefecture',
-      'status'
+      'status',
+      'customerCategory',
+      'branch',
+      'hasDeals',
+      'hasTreeBurialDeals',
+      'hasBurialPersons'
     ],
     // 日本語対応
     queryLanguages: ['ja'],

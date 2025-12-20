@@ -1,7 +1,7 @@
 # CRM V12 プロジェクトマニフェスト
 
 **バージョン**: 12.0.0
-**最終更新**: 2025-12-14
+**最終更新**: 2025-12-20
 
 ## プロジェクト概要
 
@@ -91,6 +91,7 @@ V12/
 ├── scripts/              # 管理スクリプト
 │   ├── migrate-geniee-csv.cjs      # GENIEE CSVからの移行
 │   ├── sync-firestore-to-algolia.cjs # Algolia同期
+│   ├── update-customer-deal-flags.cjs # 顧客商談フラグ更新
 │   ├── fix-deal-assigned-to.cjs    # 商談担当者名更新
 │   ├── check-firestore-data.cjs    # Firestore確認
 │   ├── check-algolia.cjs           # Algolia確認
@@ -174,6 +175,10 @@ interface Customer {
   memo?: string;                 // 備考
   memorialContact?: {...};       // 典礼責任者
   needs?: {...};                 // ニーズ情報
+  customerCategory?: string;     // 顧客区分 (individual/corporation/professional)
+  hasDeals?: boolean;            // 一般商談有無
+  hasTreeBurialDeals?: boolean;  // 樹木墓商談有無
+  hasBurialPersons?: boolean;    // 樹木墓オプション有無
   createdAt?: string;            // 作成日時
   updatedAt?: string;            // 更新日時
 }
@@ -297,6 +302,23 @@ node scripts/migrate-geniee-csv.cjs --csv <CSVファイルパス>
 node scripts/sync-firestore-to-algolia.cjs
 ```
 
+### 顧客商談フラグ更新
+
+顧客が各種商談を持っているかのフラグを更新:
+
+```bash
+# ドライラン（確認のみ）
+node scripts/update-customer-deal-flags.cjs --dry-run
+
+# 本番実行
+node scripts/update-customer-deal-flags.cjs
+```
+
+このスクリプトは:
+- Deals, TreeBurialDeals, BurialPersonsの3コレクションを走査
+- 各顧客の `hasDeals`, `hasTreeBurialDeals`, `hasBurialPersons` フラグを更新
+- 実行後はAlgolia同期も必要
+
 ### 商談担当者名更新
 
 ```bash
@@ -368,6 +390,25 @@ const matchingEmployee = employees.find(emp =>
 ```
 
 **注意**: 半角スペース`\s`と全角スペース`　`の両方を考慮すること
+
+### BurialPersonsの顧客紐づけフィールドが異なる
+
+**問題**:
+- Deals/TreeBurialDeals は `linkedCustomerTrackingNo` で顧客紐づけ
+- BurialPersons は `linkedCustomerId` で顧客紐づけ（形式: `customer_XXXXX`）
+
+**対応策**:
+```javascript
+// BurialPersonsから顧客trackingNoを取得する場合
+if (data.linkedCustomerTrackingNo) {
+  trackingNo = data.linkedCustomerTrackingNo;
+} else if (data.linkedCustomerId) {
+  // customer_XXXXX 形式からtrackingNoを抽出
+  trackingNo = data.linkedCustomerId.replace('customer_', '');
+}
+```
+
+**教訓**: コレクションごとにフィールド名が異なる可能性があるため、サンプルデータを必ず確認してからスクリプトを作成すること
 
 ---
 
