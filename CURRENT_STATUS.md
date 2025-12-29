@@ -265,6 +265,50 @@ case 'prefecture':
 - ブラウザのDevTools → Network → "Disable cache"にチェックしてテスト
 - `firebase.json`のキャッシュ設定を確認（`index.html`はno-cache必須）
 
+### 問題4: BurialPersons APIでFirestore undefined値エラー
+
+**症状**:
+- BurialPersonsの更新時にFirestoreエラーが発生
+- `Error: Value for argument "value" is not a valid Firestore document. Cannot use "undefined" as a Firestore value`
+
+**原因**:
+- APIの更新処理でundefinedの値をそのままFirestoreに書き込もうとした
+- Firestoreはundefinedを許容しない
+
+**解決**:
+```typescript
+// undefined値を除外してから保存
+const cleanData = Object.fromEntries(
+  Object.entries(data).filter(([_, v]) => v !== undefined)
+);
+await updateDoc(docRef, cleanData);
+```
+
+**再発防止策**:
+- Firestoreに保存する前に必ずundefined値をフィルタリングする
+- `firebase/config.ts`の`ignoreUndefinedProperties: true`設定を確認
+- 新規API作成時は既存APIのデータクレンジング処理を参考にする
+
+### 問題5: localtunnelで外部アクセスができない
+
+**症状**:
+- `npx localtunnel --port 3000`でトンネルURLを取得
+- 外部からアクセスするとHTTP 400エラーまたは空白ページ
+- 「you are being rate-limited」メッセージ
+
+**原因**:
+- localtunnelの無料サービスは不安定
+- レート制限やサービス側の問題
+
+**解決**:
+- Firebase Hostingにデプロイして外部アクセス可能にした
+- URL: https://crm-appsheet-v7.web.app
+
+**再発防止策**:
+- 外部アクセスが必要な場合はFirebase Hostingを使用
+- localtunnelは一時的なテスト用途のみに限定
+- 安定した外部公開にはFirebase Hosting、Vercel、Netlify等を使用
+
 ---
 
 ## 発生した問題と解決策 (2025-12-20)

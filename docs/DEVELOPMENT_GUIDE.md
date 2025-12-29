@@ -330,7 +330,51 @@ import { db } from '../firebase/config';
 - [ ] 新規APIファイル作成時は既存の`src/api/*.ts`からインポート文をコピー
 - [ ] Firebase関連は常に`../firebase/config`からインポート
 
-### 3.12 【重要】BurialPersonsの顧客紐づけフィールド名の違い
+### 3.12 【重要】Firestoreにundefined値を書き込めない
+
+**発生状況**:
+- BurialPersonsの更新時にFirestoreエラー
+- `Cannot use "undefined" as a Firestore value`
+
+**原因**:
+- APIの更新処理でundefinedの値をそのままFirestoreに渡した
+- Firestoreはundefinedを値として受け付けない
+
+**対応策**:
+```typescript
+// undefined値を除外してから保存
+const cleanData = Object.fromEntries(
+  Object.entries(data).filter(([_, v]) => v !== undefined)
+);
+await updateDoc(docRef, cleanData);
+```
+
+**チェックリスト**:
+- [ ] Firestore保存前にundefined値をフィルタリング
+- [ ] `firebase/config.ts`で`ignoreUndefinedProperties: true`を設定
+- [ ] 新規API作成時は既存APIのデータクレンジング処理を確認
+
+### 3.13 【重要】localtunnelは不安定
+
+**発生状況**:
+- `npx localtunnel --port 3000`でトンネルURL取得
+- 外部からHTTP 400エラーまたは空白ページ
+- レート制限メッセージ
+
+**原因**:
+- localtunnelの無料サービスは安定性に欠ける
+- レート制限やサービス障害が頻発
+
+**対応策**:
+- 外部アクセスが必要な場合はFirebase Hostingにデプロイ
+- URL: https://crm-appsheet-v7.web.app
+
+**チェックリスト**:
+- [ ] 安定した外部公開にはFirebase Hosting/Vercel/Netlifyを使用
+- [ ] localtunnelは一時的なテスト用途のみ
+- [ ] 本番デモや顧客確認にはFirebase Hostingを使用
+
+### 3.14 【重要】BurialPersonsの顧客紐づけフィールド名の違い
 
 **発生状況**:
 - 商談フラグ計算スクリプトで、BurialPersonsから顧客紐づけを取得しようとしたところ0件
@@ -580,4 +624,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
-| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造に関する教訓追加 |
+| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定に関する教訓追加 |
