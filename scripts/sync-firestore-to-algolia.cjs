@@ -59,10 +59,25 @@ function getStringValue(val) {
 }
 
 // 住所を文字列に変換（Firestoreデータ構造対応）
-function formatAddress(address) {
-  if (!address) return '';
-  if (typeof address === 'string') return address;
-  if (typeof address === 'object') {
+// dataオブジェクト全体を渡して直接フィールドも参照する
+function formatAddressFromData(data) {
+  // 直接フィールドから住所を組み立て（優先）
+  const directParts = [
+    getStringValue(data.prefecture),
+    getStringValue(data.city),
+    getStringValue(data.town),
+    // addressが文字列の場合は番地として使用
+    typeof data.address === 'string' ? data.address : '',
+    getStringValue(data.building),
+  ].filter(Boolean);
+
+  if (directParts.length > 0) {
+    return directParts.join(' ');
+  }
+
+  // フォールバック: addressがオブジェクトの場合
+  const address = data.address;
+  if (address && typeof address === 'object') {
     // fullがあればそれを使用（V12更新後のデータ）
     if (address.full && typeof address.full === 'string') {
       return address.full;
@@ -78,8 +93,9 @@ function formatAddress(address) {
       getStringValue(address.town),
       getStringValue(address.streetNumber),
       getStringValue(address.building)
-    ].filter(Boolean).join('');
+    ].filter(Boolean).join(' ');
   }
+
   return '';
 }
 
@@ -127,8 +143,8 @@ async function syncFirestoreToAlgolia() {
   snapshot.docs.slice(0, 3).forEach(doc => {
     const data = doc.data();
     console.log(`   ${data.trackingNo || doc.id}: ${data.name}`);
-    console.log(`   住所オブジェクト:`, JSON.stringify(data.address, null, 2).substring(0, 200));
-    console.log(`   変換後: ${formatAddress(data.address)}`);
+    console.log(`   住所オブジェクト: "${typeof data.address === 'string' ? data.address : JSON.stringify(data.address)}"`);
+    console.log(`   変換後: ${formatAddressFromData(data)}`);
     console.log('');
   });
 
@@ -141,6 +157,9 @@ async function syncFirestoreToAlgolia() {
     // trackingNoを数値に変換（ソート用）
     const trackingNoNumeric = parseInt(data.trackingNo, 10) || 0;
 
+    // 典礼責任者情報
+    const memorialContact = data.memorialContact || {};
+
     const record = {
       objectID: data.trackingNo || firestoreId,  // Algolia必須
       firestoreId: firestoreId,                   // Firestore IDも保存
@@ -151,18 +170,27 @@ async function syncFirestoreToAlgolia() {
       phone: normalizePhone(data.phone),
       phoneOriginal: (data.phone && typeof data.phone === 'object') ? data.phone.original : (data.phone || ''),
       email: typeof data.email === 'object' ? getStringValue(data.email) : (data.email || ''),
-      address: formatAddress(data.address),
-      addressPrefecture: getStringValue(data.address?.prefecture),
-      addressCity: getStringValue(data.address?.city),
-      memo: data.notes || '',  // Firestoreでは「notes」フィールドとして保存
+      address: formatAddressFromData(data),  // 完全な住所文字列
+      // 住所フィールド（検索・フィルター用）- フロントエンドの型定義と統一
+      addressPrefecture: getStringValue(data.prefecture) || getStringValue(data.address?.prefecture) || '',
+      addressCity: getStringValue(data.city) || getStringValue(data.address?.city) || '',
+      addressTown: getStringValue(data.town) || getStringValue(data.address?.town) || '',
+      addressBuilding: getStringValue(data.building) || getStringValue(data.address?.building) || '',
+      memo: data.memo || '',  // 備考フィールド
       status: data.status || '',
-      customerCategory: data.customerCategory || '',  // 顧客区分
+      customerCategory: data.customerCategory || '',  // 顧客区分 (individual, corporation, professional, temple)
       branch: data.branch || '',  // 拠点名
       hasDeals: data.hasDeals || false,  // 一般商談有無
       hasTreeBurialDeals: data.hasTreeBurialDeals || false,  // 樹木墓商談有無
       hasBurialPersons: data.hasBurialPersons || false,  // 樹木墓オプション有無
       createdAt: data.createdAt || '',
       updatedAt: data.updatedAt || '',
+
+      // 典礼責任者情報
+      memorialContactName: memorialContact.name || '',
+      memorialContactAddress: memorialContact.address || '',
+      memorialContactPhone: memorialContact.phone || '',
+      memorialContactNeedsAttention: memorialContact.needsAttention || false,
 
       // 検索用の正規化フィールド（ひらがな・カタカナ両方で検索可能に）
       _searchName: katakanaToHiragana(data.name || ''),
@@ -186,8 +214,12 @@ async function syncFirestoreToAlgolia() {
   // インデックス設定
   console.log('\n⚙️ インデックス設定を構成中...');
   await index.setSettings({
-    // 検索対象フィールド（優先順）
+    // 検索対象フィールド（優先度順 - unorderedで同一優先度を設定）
+    // 優先度1: 主要な識別フィールド
+    // 優先度2: 補助フィールド
+    // 優先度3: 自由記述フィールド（memo等は最後）
     searchableAttributes: [
+      // 優先度1: 主要フィールド
       'name',
       'nameKana',
       '_searchName',
@@ -195,9 +227,21 @@ async function syncFirestoreToAlgolia() {
       'trackingNo',
       'phone',
       'phoneOriginal',
-      'address',
-      'email',
-      'memo'
+      // 優先度2: 住所・連絡先
+      'unordered(address)',
+      'unordered(addressPrefecture)',
+      'unordered(addressCity)',
+      'unordered(email)',
+      // 優先度3: 典礼責任者
+      'unordered(memorialContactName)',
+      'unordered(memorialContactAddress)',
+      'unordered(memorialContactPhone)',
+      // 優先度4: カテゴリ
+      'unordered(status)',
+      'unordered(customerCategory)',
+      'unordered(branch)',
+      // 優先度5: 自由記述（最低優先度）
+      'unordered(memo)'
     ],
     // カスタムランキング（管理番号の大きい順で表示）
     customRanking: ['desc(trackingNoNumeric)'],
@@ -221,14 +265,22 @@ async function syncFirestoreToAlgolia() {
       'hasDeals',
       'hasTreeBurialDeals',
       'hasBurialPersons',
-      'memo'
+      'memo',
+      'memorialContactName',
+      'memorialContactAddress',
+      'memorialContactPhone',
+      'memorialContactNeedsAttention',
+      'createdAt',
+      'updatedAt'
     ],
     // ハイライト設定
     attributesToHighlight: [
       'name',
       'nameKana',
       'address',
-      'memo'
+      'memo',
+      'memorialContactName',
+      'memorialContactAddress'
     ],
     // ファセット（フィルタリング用）
     attributesForFaceting: [
@@ -238,15 +290,22 @@ async function syncFirestoreToAlgolia() {
       'branch',
       'hasDeals',
       'hasTreeBurialDeals',
-      'hasBurialPersons'
+      'hasBurialPersons',
+      'memorialContactNeedsAttention'
     ],
     // 日本語対応
     queryLanguages: ['ja'],
     indexLanguages: ['ja'],
-    // タイポ許容
-    typoTolerance: true,
-    minWordSizefor1Typo: 2,
-    minWordSizefor2Typos: 4
+    // タイポ許容（日本語検索では無効化推奨）
+    typoTolerance: false,
+    // 完全一致を優先
+    exactOnSingleWordQuery: 'word',
+    // 検索モード
+    queryType: 'prefixLast',
+    // 高度な検索構文を有効化（""で囲むと完全一致検索）
+    advancedSyntax: true,
+    // 全単語が含まれる結果を優先
+    removeWordsIfNoResults: 'none'
   });
 
   console.log('\n✅ 同期完了!');

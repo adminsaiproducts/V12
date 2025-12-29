@@ -34,7 +34,8 @@ function getFieldValue(customer: any, field: FilterField): unknown {
       value = customer.branch || '';
       break;
     case 'prefecture':
-      // 優先順位: addressPrefecture > prefecture > address文字列から抽出
+      // 標準: addressPrefecture（Algolia同期スクリプトで設定）
+      // フォールバック: 旧データ形式への互換性のため
       if (customer.addressPrefecture) {
         value = customer.addressPrefecture;
       } else if (customer.prefecture) {
@@ -42,14 +43,15 @@ function getFieldValue(customer: any, field: FilterField): unknown {
       } else if (customer.address && typeof customer.address === 'object') {
         value = customer.address.prefecture || '';
       } else if (typeof customer.address === 'string') {
-        // address文字列から都道府県を抽出（例: "東京都 新宿区 ..." → "東京都"）
+        // レガシー: address文字列から都道府県を抽出
         const addressStr = customer.address;
         const prefectureMatch = addressStr.match(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/);
         value = prefectureMatch ? prefectureMatch[1] : '';
       }
       break;
     case 'city':
-      // 優先順位: addressCity > city > address文字列から抽出
+      // 標準: addressCity（Algolia同期スクリプトで設定）
+      // フォールバック: 旧データ形式への互換性のため
       if (customer.addressCity) {
         value = customer.addressCity;
       } else if (customer.city) {
@@ -57,9 +59,8 @@ function getFieldValue(customer: any, field: FilterField): unknown {
       } else if (customer.address && typeof customer.address === 'object') {
         value = customer.address.city || '';
       } else if (typeof customer.address === 'string') {
-        // address文字列から市区町村を抽出（例: "東京都 新宿区 ..." → "新宿区"）
+        // レガシー: address文字列から市区町村を抽出
         const addressStr = customer.address;
-        // 都道府県を除去して、最初の市区町村を取得
         const withoutPref = addressStr.replace(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)\s*/, '');
         const cityMatch = withoutPref.match(/^(.+?[市区町村])/);
         value = cityMatch ? cityMatch[1] : '';

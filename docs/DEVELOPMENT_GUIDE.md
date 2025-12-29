@@ -513,6 +513,42 @@ firebase deploy --only firestore:indexes
 - GENIEE CSVから一般商談をインポートするスクリプトが必要
 - インポート後は`update-customer-deal-flags.cjs`で`hasDeals`フラグを更新
 
+### 3.19 【重要】AlgoliaとFirestoreのフィールド名統一
+
+**発生状況**:
+- 住所フィールドのフィルター機能で0件になる
+- Algolia同期スクリプトとフロントエンドで異なるフィールド名を使用
+
+**問題の詳細**:
+| 場所 | 都道府県 | 市区町村 |
+|------|----------|----------|
+| Algolia同期スクリプト（旧） | `prefecture` | `city` |
+| AlgoliaCustomerHit型 | `addressPrefecture` | `addressCity` |
+| filterEngine.ts参照 | `addressPrefecture` | `addressCity` |
+
+**対応策（2025-12-29実施）**:
+```javascript
+// sync-firestore-to-algolia.cjs
+// 変更前
+prefecture: getStringValue(data.prefecture) || ...
+city: getStringValue(data.city) || ...
+
+// 変更後（フロントエンドの型定義と統一）
+addressPrefecture: getStringValue(data.prefecture) || ...
+addressCity: getStringValue(data.city) || ...
+```
+
+**統一されたフィールド名**:
+- `addressPrefecture` - 都道府県
+- `addressCity` - 市区町村
+- `addressTown` - 町域
+- `addressBuilding` - 建物名
+
+**チェックリスト**:
+- [ ] 新しいフィールドを追加する際はAlgolia同期スクリプトとフロントエンド型定義の両方を確認
+- [ ] フィールド名は`address`プレフィックスで統一（グルーピング明確化）
+- [ ] 変更後は`node scripts/sync-firestore-to-algolia.cjs`で再同期
+
 ---
 
 ## 4. コードベースの重要ポイント
@@ -737,4 +773,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
-| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックスに関する教訓追加 |
+| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックス・Algoliaフィールド名統一に関する教訓追加 |

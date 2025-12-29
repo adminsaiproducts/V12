@@ -13,7 +13,7 @@ export const activitiesIndex = algoliaClient.initIndex('activities');
 
 // 検索オプションのデフォルト値
 export const DEFAULT_SEARCH_OPTIONS = {
-  hitsPerPage: 100,
+  hitsPerPage: 2000,
   attributesToRetrieve: [
     'objectID',
     'firestoreId',
@@ -26,6 +26,8 @@ export const DEFAULT_SEARCH_OPTIONS = {
     'address',
     'addressPrefecture',
     'addressCity',
+    'addressTown',
+    'addressBuilding',
     'status',
     'memo',
     'customerCategory',
@@ -48,8 +50,11 @@ export interface AlgoliaCustomerHit {
   phoneOriginal?: string;
   email: string;
   address: string;
+  // 住所フィールド（フィルター・検索用）- Algolia同期スクリプトと統一
   addressPrefecture: string;
   addressCity: string;
+  addressTown?: string;
+  addressBuilding?: string;
   status: string;
   memo?: string;
   customerCategory?: string;  // 顧客区分（individual/corporation/professional）
