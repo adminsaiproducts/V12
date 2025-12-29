@@ -1,6 +1,6 @@
 # CRM V12 開発ガイド
 
-**最終更新**: 2025-12-29 (Firebase biz-01移行後)
+**最終更新**: 2025-12-30 (biz-01データ移行完了)
 
 このドキュメントは、CRM V12 の開発を再開する際に必要な情報をまとめています。
 
@@ -602,6 +602,29 @@ firebase deploy --only hosting --project biz-01
 - [ ] 大量データ移行は複数日に分けて実行
 - [ ] バッチサイズを小さくする（500件→300件）
 
+### 3.24 【注意】GCS Export/Import UIのパス検証制限
+
+**発生状況**:
+- Cloud Console UIでFirestoreエクスポートをインポートしようとするとパス検証エラー
+- 「バケット名に使用できるのは英小文字、数字、ダッシュ、アンダースコア、ドットのみです」
+
+**原因**:
+- Firestoreエクスポートのフォルダ名にはタイムスタンプが含まれる（例: `2025-12-29T14:44:37_59262`）
+- このタイムスタンプにはコロン（:）が含まれる
+- Cloud Console UIのバリデーションがコロンを拒否
+
+**対応策**:
+- gcloud CLIを使用してインポート
+  ```bash
+  gcloud firestore import gs://bucket-name/export-folder --database=your-database
+  ```
+- または、スクリプトベースの移行（`migrate-firestore-data.cjs`）を使用
+
+**チェックリスト**:
+- [ ] GCS Export/ImportはUIではなくgcloud CLIを使用
+- [ ] クロスプロジェクト移行には`migrate-firestore-data.cjs`スクリプトが確実
+- [ ] エクスポート前にフォルダ名の命名規則を確認（コロンを避ける場合はカスタム名を指定）
+
 ### 3.19 【重要】AlgoliaとFirestoreのフィールド名統一
 
 **発生状況**:
@@ -877,3 +900,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
 | 2025-12-29 AM | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックス・Algoliaフィールド名統一に関する教訓追加 |
 | 2025-12-29 PM | **Firebase biz-01プロジェクトへ移行**、Firestoreセキュリティルール全コレクション追加、auth/unauthorized-domainエラー対応、組織ポリシーオーバーライド、Firestoreクォータ制限に関する教訓追加 |
+| 2025-12-30 | **biz-01データ移行完了**（Relationships: 1,122件、DealProducts: 11,541件、Activities: 12,317件追加）、GCS Export/Import UIパス検証制限に関する教訓追加 |

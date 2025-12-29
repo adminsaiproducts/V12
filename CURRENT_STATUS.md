@@ -1,8 +1,15 @@
 # CRM V12 現在の状況
 
-**最終更新**: 2025-12-29 JST (Firebase biz-01移行完了)
+**最終更新**: 2025-12-30 JST (全データ移行完了)
 
-## 現在のステータス: Firebase biz-01プロジェクトへの移行完了
+## 現在のステータス: Firebase biz-01プロジェクトへの全データ移行完了
+
+### 直近で実施した作業 (2025-12-30)
+
+1. **残りデータの移行完了**
+   - Relationships: 1,122件移行完了
+   - DealProducts: 11,541件移行完了
+   - Activities: 12,317件追加移行（合計32,117件）
 
 ### 直近で実施した作業 (2025-12-29 午後)
 
@@ -12,17 +19,17 @@
    - データベース: デフォルトDB使用（名前付きDBから変更）
    - 認証: Google OAuth（@saiproducts.co.jpドメイン制限）
 
-2. **データ移行状況**
-   - ✅ Customers: 11,063件移行済
-   - ✅ TreeBurialDeals: 3,073件移行済
-   - ✅ BurialPersons: 5,452件移行済
-   - ✅ GeneralSalesDeals: 106件移行済
-   - ✅ ConstructionProjects: 43件移行済
-   - ✅ Masters: 14件移行済
-   - ✅ RelationshipTypes: 49件移行済
-   - ⏳ Relationships: 1,122件（クォータ制限で未移行）
-   - ⏳ DealProducts: 11,541件（クォータ制限で未移行）
-   - ⚠️ Activities: 一部移行済（クォータ制限）
+2. **データ移行状況（全て完了）**
+   - ✅ Customers: 11,063件
+   - ✅ TreeBurialDeals: 3,073件
+   - ✅ BurialPersons: 5,452件
+   - ✅ GeneralSalesDeals: 106件
+   - ✅ ConstructionProjects: 43件
+   - ✅ Masters: 14件
+   - ✅ RelationshipTypes: 49件
+   - ✅ Relationships: 1,122件
+   - ✅ DealProducts: 11,541件
+   - ✅ Activities: 32,117件
 
 3. **Firestoreセキュリティルール修正**
    - 不足していた全コレクションのルールを追加
