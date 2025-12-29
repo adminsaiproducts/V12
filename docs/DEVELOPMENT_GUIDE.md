@@ -1,6 +1,6 @@
 # CRM V12 開発ガイド
 
-**最終更新**: 2025-12-20
+**最終更新**: 2025-12-29
 
 このドキュメントは、CRM V12 の開発を再開する際に必要な情報をまとめています。
 
@@ -103,6 +103,19 @@ npm run build
 # Firebaseへデプロイ
 firebase deploy --only hosting
 ```
+
+### 2.5 外部ネットワークからのアクセス
+
+開発中のアプリを外部から確認する場合:
+
+```bash
+# Firebase Hostingにデプロイ（推奨）
+npm run build
+firebase deploy --only hosting
+# URL: https://crm-appsheet-v7.web.app
+```
+
+**注意**: localtunnelやngrokは不安定なため、Firebase Hostingを使用すること
 
 ---
 
