@@ -1,7 +1,7 @@
 # CRM V12 プロジェクトマニフェスト
 
 **バージョン**: 12.0.0
-**最終更新**: 2025-12-20
+**最終更新**: 2025-12-29
 
 ## プロジェクト概要
 
@@ -57,10 +57,12 @@ V12/
 │   │   ├── customers.ts  # 顧客API
 │   │   ├── deals.ts      # 商談API
 │   │   ├── relationships.ts  # 関係性API
-│   │   └── sales.ts      # 売上API
+│   │   ├── sales.ts      # 売上API
+│   │   └── searchLists.ts # 検索リストAPI
 │   ├── components/       # 再利用可能なコンポーネント
 │   │   ├── DealForm.tsx  # 商談フォーム（ダイアログ）
 │   │   ├── RelationshipCard.tsx  # 関係性カード
+│   │   ├── SearchListBuilder.tsx # 検索条件ビルダー
 │   │   └── ...
 │   ├── hooks/            # カスタムフック
 │   │   ├── useAlgoliaSearch.ts  # Algolia検索
@@ -69,7 +71,9 @@ V12/
 │   │   ├── employees.json       # 従業員マスター
 │   │   └── relationshipTypes.json  # 関係性タイプ
 │   ├── lib/              # ライブラリ設定
-│   │   └── algolia.ts    # Algolia設定
+│   │   ├── algolia.ts    # Algolia設定
+│   │   ├── filterEngine.ts  # 顧客フィルタリングロジック
+│   │   └── csvExport.ts  # CSVエクスポート機能
 │   ├── pages/            # ページコンポーネント
 │   │   ├── Customers.tsx       # 顧客一覧
 │   │   ├── CustomerDetail.tsx  # 顧客詳細
@@ -86,6 +90,8 @@ V12/
 │   ├── firebase/         # Firebase設定
 │   │   └── config.ts     # Firebase初期化 (databaseId: crm-database-v9)
 │   ├── types/            # TypeScript型定義
+│   │   ├── firestore.ts  # Firestoreエンティティ型
+│   │   └── searchList.ts # 検索リスト条件型
 │   └── utils/            # ユーティリティ関数
 │       └── format.ts     # formatCurrency等
 ├── scripts/              # 管理スクリプト
@@ -127,6 +133,7 @@ V12/
 | Relationships | 顧客間関係性 |
 | Temples | 寺院情報 |
 | Activities | 活動履歴 |
+| CustomerSearchLists | 検索条件リスト（カスタム保存） |
 
 ### 認証
 

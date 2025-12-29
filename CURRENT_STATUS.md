@@ -1,8 +1,33 @@
 # CRM V12 現在の状況
 
-**最終更新**: 2025-12-20 JST
+**最終更新**: 2025-12-29 JST
 
-## 現在のステータス: 顧客一覧ページ改善完了（拠点・商談アイコン追加）
+## 現在のステータス: 検索リスト機能（フィルター・CSV出力）実装完了
+
+### 直近で実施した作業 (2025-12-29)
+
+1. **検索リスト機能の実装**
+   - 顧客一覧に検索条件リスト機能を追加
+   - 複数条件でのフィルタリング（AND/OR ロジック）
+   - 条件の保存・編集・削除（Firestoreに保存）
+   - CSVダウンロード機能
+
+2. **新規作成ファイル**
+   - `src/types/searchList.ts` - フィルター条件の型定義
+   - `src/api/searchLists.ts` - 検索リストCRUD API
+   - `src/lib/filterEngine.ts` - フィルタリングロジック
+   - `src/components/SearchListBuilder.tsx` - 条件ビルダーUI
+   - `src/lib/csvExport.ts` - CSVエクスポート機能
+
+3. **Firebase Hostingキャッシュ設定の修正**
+   - `firebase.json`に`index.html`のno-cache設定を追加
+   - デプロイ後のブラウザキャッシュ問題を解決
+
+4. **フィルターエンジンの住所解析**
+   - Algoliaデータの`address`フィールドから都道府県・市区町村を正規表現で抽出
+   - `addressPrefecture`/`addressCity`が未設定の場合のフォールバック処理
+
+---
 
 ### 直近で実施した作業 (2025-12-20)
 
@@ -99,6 +124,20 @@
 
 ---
 
+## ファイル変更履歴 (2025-12-29)
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/types/searchList.ts` | **新規作成** - フィルター条件の型定義 |
+| `src/api/searchLists.ts` | **新規作成** - 検索リストCRUD API |
+| `src/lib/filterEngine.ts` | **新規作成** - 顧客フィルタリングロジック |
+| `src/lib/csvExport.ts` | **新規作成** - CSVエクスポート機能 |
+| `src/components/SearchListBuilder.tsx` | **新規作成** - 検索条件ビルダーUI |
+| `src/pages/Customers.tsx` | 検索リスト選択、フィルター適用、CSVダウンロード追加 |
+| `firebase.json` | index.htmlのno-cache設定追加 |
+
+---
+
 ## ファイル変更履歴 (2025-12-20)
 
 | ファイル | 変更内容 |
@@ -126,6 +165,105 @@
 | `src/App.tsx` | 寺院別樹木墓ルート追加 |
 | `src/utils/format.ts` | formatCurrency追加 |
 | 他14ファイル | 樹木葬→樹木墓の名称変更 |
+
+---
+
+## 発生した問題と解決策 (2025-12-29)
+
+### 問題1: Firebaseインポートパスエラー
+
+**症状**:
+- `Cannot find module '../firebase'` エラーでビルド失敗
+
+**原因**:
+- `src/api/searchLists.ts`で`import { db } from '../firebase'`と記述
+- 正しいパスは`../firebase/config`
+
+**解決**:
+```typescript
+// ❌ 間違い
+import { db } from '../firebase';
+
+// ✅ 正しい
+import { db } from '../firebase/config';
+```
+
+**再発防止策**:
+- 新規APIファイル作成時は既存の`src/api/*.ts`からインポート文をコピーする
+- Firebase関連は常に`../firebase/config`からインポート
+
+### 問題2: フィルターで0件になる（住所データ構造の誤解）
+
+**症状**:
+- 都道府県フィルターを適用すると0件になる
+- コンソールで`addressPrefecture: undefined`と表示
+
+**原因**:
+- Algoliaデータには`addressPrefecture`/`addressCity`フィールドが存在しない場合がある
+- 住所は`address`フィールドに連結文字列として格納されている
+  - 例: `"東京都 新宿区 市谷本村町 7-4-3305"`
+
+**解決**:
+```typescript
+// filterEngine.ts で住所文字列から都道府県を抽出
+case 'prefecture':
+  if (customer.addressPrefecture) {
+    value = customer.addressPrefecture;
+  } else if (typeof customer.address === 'string') {
+    const prefectureMatch = customer.address.match(
+      /^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/
+    );
+    value = prefectureMatch ? prefectureMatch[1] : '';
+  }
+  break;
+```
+
+**再発防止策**:
+- Algoliaのデータ構造は必ずコンソールでサンプルデータを確認する
+- フィールドが`undefined`の場合のフォールバック処理を常に実装する
+
+### 問題3: Firebase Hostingデプロイ後に更新が反映されない
+
+**症状**:
+- デプロイ完了後もブラウザに古いJSが読み込まれる
+- シークレットウィンドウでも変化なし
+- コンソール出力が古いコードのまま
+
+**原因**:
+- `firebase.json`でJS/CSSファイルが1年間キャッシュされる設定
+- `index.html`にキャッシュ制御ヘッダーがなく、古いJSファイルへの参照が残る
+
+**解決**:
+```json
+// firebase.json に index.html の no-cache 設定を追加
+{
+  "headers": [
+    {
+      "source": "index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "**/*.@(js|css)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**再発防止策**:
+- デプロイ後に問題が発生した場合は、まず`dist`フォルダを削除してクリーンビルド
+- ブラウザのDevTools → Network → "Disable cache"にチェックしてテスト
+- `firebase.json`のキャッシュ設定を確認（`index.html`はno-cache必須）
 
 ---
 

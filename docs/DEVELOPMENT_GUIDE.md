@@ -245,7 +245,92 @@ const matchingEmployee = employees.find(emp =>
 );
 ```
 
-### 3.9 【重要】BurialPersonsの顧客紐づけフィールド名の違い
+### 3.9 【重要】Firebase Hostingデプロイ後にキャッシュが残る
+
+**発生状況**:
+- デプロイ完了後もブラウザに古いJSが読み込まれる
+- シークレットウィンドウでも変化なし
+- Ctrl+Shift+Rでハードリフレッシュしても解決しない
+
+**原因**:
+- `firebase.json`でJS/CSSファイルが1年間キャッシュされる設定
+- `index.html`にキャッシュ制御ヘッダーがなく、古いJSファイルへの参照が残る
+
+**対応策**:
+```json
+// firebase.json に index.html の no-cache 設定を追加
+{
+  "headers": [
+    {
+      "source": "index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**チェックリスト**:
+- [ ] デプロイ前に`dist`フォルダを削除してクリーンビルド
+- [ ] ブラウザのDevTools → Network → "Disable cache"でテスト
+- [ ] `firebase.json`で`index.html`はno-cache設定になっているか確認
+
+### 3.10 【重要】Algoliaデータの住所フィールド構造
+
+**発生状況**:
+- 都道府県フィルターを実装したが0件しかマッチしない
+- `addressPrefecture`フィールドが`undefined`
+
+**原因**:
+- Algoliaデータには`addressPrefecture`/`addressCity`フィールドが存在しない場合がある
+- 住所は`address`フィールドに連結文字列として格納されている
+  - 例: `"東京都 新宿区 市谷本村町 7-4-3305"`
+
+**対応策**:
+```typescript
+// フィールドが存在しない場合は住所文字列から抽出
+if (customer.addressPrefecture) {
+  value = customer.addressPrefecture;
+} else if (typeof customer.address === 'string') {
+  const prefectureMatch = customer.address.match(
+    /^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/
+  );
+  value = prefectureMatch ? prefectureMatch[1] : '';
+}
+```
+
+**チェックリスト**:
+- [ ] Algoliaのデータ構造を必ずコンソールでサンプルデータ確認
+- [ ] フィールドが`undefined`の場合のフォールバック処理を実装
+- [ ] 複数のデータソース（専用フィールド / 連結文字列）を考慮
+
+### 3.11 【重要】新規APIファイルのFirebaseインポートパス
+
+**発生状況**:
+- 新規作成した`src/api/searchLists.ts`でビルドエラー
+- `Cannot find module '../firebase'`
+
+**原因**:
+- `import { db } from '../firebase'`と記述したが、正しいパスは`../firebase/config`
+
+**対応策**:
+```typescript
+// ❌ 間違い
+import { db } from '../firebase';
+
+// ✅ 正しい
+import { db } from '../firebase/config';
+```
+
+**チェックリスト**:
+- [ ] 新規APIファイル作成時は既存の`src/api/*.ts`からインポート文をコピー
+- [ ] Firebase関連は常に`../firebase/config`からインポート
+
+### 3.12 【重要】BurialPersonsの顧客紐づけフィールド名の違い
 
 **発生状況**:
 - 商談フラグ計算スクリプトで、BurialPersonsから顧客紐づけを取得しようとしたところ0件
@@ -330,6 +415,11 @@ src/
 | `src/lib/algolia.ts` | Algoliaクライアント、AlgoliaCustomerHit型 |
 | `src/data/employees.json` | 従業員マスター |
 | `src/utils/format.ts` | formatCurrency等のフォーマット関数 |
+| `src/types/searchList.ts` | 検索リスト条件の型定義 |
+| `src/api/searchLists.ts` | 検索リストCRUD API |
+| `src/lib/filterEngine.ts` | 顧客フィルタリングロジック |
+| `src/lib/csvExport.ts` | CSVエクスポート機能 |
+| `src/components/SearchListBuilder.tsx` | 検索条件ビルダーUI |
 | `scripts/update-customer-deal-flags.cjs` | 顧客商談フラグ更新スクリプト |
 | `scripts/sync-firestore-to-algolia.cjs` | Firestore→Algolia同期スクリプト |
 
@@ -490,3 +580,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
+| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造に関する教訓追加 |
