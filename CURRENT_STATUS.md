@@ -435,6 +435,9 @@ cd V12 && npm run build
 - 顧客リンクは全て管理番号（trackingNo）ベースに統一
 - 金額表示は全て3桁区切りで統一
 - Firebase Hosting URL: https://crm-appsheet-v7.web.app
+- 関係性データ: 約2,005件が`targetCustomerId=null`（APIでスキップ処理済み）
+- 一般商談（Deals）: 0件（未インポート）、TreeBurialDeals: 2,362件のみ
+- trackingNo採番: Countersコレクションでトランザクション管理
 
 ---
 

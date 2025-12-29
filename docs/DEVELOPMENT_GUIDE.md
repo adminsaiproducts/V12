@@ -413,6 +413,106 @@ if (data.linkedCustomerTrackingNo) {
 - [ ] 顧客紐づけフィールド名がコレクションによって異なる可能性を考慮
 - [ ] `linkedCustomerId`は`customer_`プレフィックス付きであることに注意
 
+### 3.15 【重要】関係性データの品質問題（targetCustomerId=null）
+
+**発生状況**:
+- 関係性一覧で一部のデータが表示されない
+- 約2,005件のRelationshipsレコードで`targetCustomerId`が`null`
+
+**原因**:
+- 移行時に相手顧客が特定できなかったケース
+- 備考欄に記載された名前と顧客マスターが一致しなかった
+
+**対応策**:
+```typescript
+// src/api/relationships.ts でnullチェックを追加
+if (!targetCustomerIdValue) {
+  console.log('[Relationships] targetCustomerIdValue is null/empty, skipping');
+  return; // 有効なデータのみ表示
+}
+```
+
+**チェックリスト**:
+- [ ] 関係性データを表示する際はnullチェックを必ず実装
+- [ ] 将来的に顧客名マッチングロジックを改善して紐づけ率を向上
+
+### 3.16 【重要】trackingNo採番にはCountersコレクションを使用
+
+**発生状況**:
+- 新規顧客登録時にtrackingNoを自動採番する必要がある
+- 複数ユーザーが同時に登録した場合の重複防止
+
+**対応策**:
+```typescript
+// src/lib/customerService.ts
+export async function getNextTrackingNo(): Promise<string> {
+  const counterRef = doc(db, 'Counters', 'trackingNo');
+
+  return await runTransaction(db, async (transaction) => {
+    const counterDoc = await transaction.get(counterRef);
+    const currentValue = counterDoc.exists() ? counterDoc.data().value || 0 : 0;
+    const nextValue = currentValue + 1;
+
+    transaction.set(counterRef, {
+      value: nextValue,
+      updatedAt: new Date().toISOString()
+    });
+
+    return String(nextValue);
+  });
+}
+```
+
+**チェックリスト**:
+- [ ] 連番採番は必ずFirestoreトランザクションを使用（同時実行時の重複防止）
+- [ ] Countersコレクションにカウンタードキュメントを作成
+- [ ] 初期値設定スクリプト: `scripts/init-tracking-no-counter.cjs`
+
+### 3.17 【重要】Firestoreインデックスの事前作成
+
+**発生状況**:
+- 複合条件でのクエリ（例: `where('customerId', '==', x).orderBy('createdAt')`）がエラー
+- コンソールに「The query requires an index」メッセージ
+
+**原因**:
+- Firestoreは複合クエリに対して事前にインデックス作成が必要
+
+**対応策**:
+```bash
+# firestore.indexes.json にインデックス定義を追加
+# 例: Dealsコレクションで customerId + createdAt の複合インデックス
+{
+  "collectionGroup": "Deals",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "customerId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ]
+}
+
+# デプロイ
+firebase deploy --only firestore:indexes
+```
+
+**チェックリスト**:
+- [ ] 新しい複合クエリを追加する前にインデックス定義を確認
+- [ ] エラーメッセージのURLからインデックスを自動作成可能
+- [ ] `firestore.indexes.json`に定義を追加してコミット
+
+### 3.18 【注意】一般商談（Deals）は現在0件
+
+**現状**:
+- Dealsコレクションは0件（未インポート）
+- TreeBurialDealsのみがインポート済み（2,362件）
+
+**影響**:
+- 商談一覧ページ（/deals）は空
+- 顧客詳細の「商談」タブも一般商談は空
+
+**将来の対応**:
+- GENIEE CSVから一般商談をインポートするスクリプトが必要
+- インポート後は`update-customer-deal-flags.cjs`で`hasDeals`フラグを更新
+
 ---
 
 ## 4. コードベースの重要ポイント
@@ -637,4 +737,4 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
-| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定に関する教訓追加 |
+| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックスに関する教訓追加 |
