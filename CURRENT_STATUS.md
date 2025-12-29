@@ -1,10 +1,45 @@
 # CRM V12 現在の状況
 
-**最終更新**: 2025-12-29 JST
+**最終更新**: 2025-12-29 JST (Firebase biz-01移行完了)
 
-## 現在のステータス: 検索リスト機能（フィルター・CSV出力）実装完了
+## 現在のステータス: Firebase biz-01プロジェクトへの移行完了
 
-### 直近で実施した作業 (2025-12-29)
+### 直近で実施した作業 (2025-12-29 午後)
+
+1. **Firebase biz-01プロジェクトへの移行**
+   - 新プロジェクトID: `biz-01`（会社名変更に耐える中立なURL）
+   - 新URL: https://biz-01.web.app
+   - データベース: デフォルトDB使用（名前付きDBから変更）
+   - 認証: Google OAuth（@saiproducts.co.jpドメイン制限）
+
+2. **データ移行状況**
+   - ✅ Customers: 11,063件移行済
+   - ✅ TreeBurialDeals: 3,073件移行済
+   - ✅ BurialPersons: 5,452件移行済
+   - ✅ GeneralSalesDeals: 106件移行済
+   - ✅ ConstructionProjects: 43件移行済
+   - ✅ Masters: 14件移行済
+   - ✅ RelationshipTypes: 49件移行済
+   - ⏳ Relationships: 1,122件（クォータ制限で未移行）
+   - ⏳ DealProducts: 11,541件（クォータ制限で未移行）
+   - ⚠️ Activities: 一部移行済（クォータ制限）
+
+3. **Firestoreセキュリティルール修正**
+   - 不足していた全コレクションのルールを追加
+   - 「Missing or insufficient permissions」エラーを解決
+
+4. **作成・更新したファイル**
+   - `scripts/migrate-firestore-data.cjs` - プロジェクト間データ移行スクリプト
+   - `scripts/check-biz01-data.cjs` - biz-01データ確認スクリプト
+   - `config/serviceAccount-dest.json` - biz-01用サービスアカウント
+   - `config/serviceAccount-v9.json` - 移行元データ読み取り用
+   - `firestore.rules` - 全コレクションのルール追加
+   - `.env.local` - biz-01 Firebase設定
+   - `src/firebase/config.ts` - デフォルトDB使用に変更
+
+---
+
+### 直近で実施した作業 (2025-12-29 午前)
 
 1. **検索リスト機能の実装**
    - 顧客一覧に検索条件リスト機能を追加
@@ -89,6 +124,14 @@
 
 ## 次に必要なアクション
 
+### 緊急タスク（Firebase移行関連）
+
+1. **残りデータの移行（クォータリセット後）**
+   - Relationships: 1,122件
+   - DealProducts: 11,541件
+   - Activities: 残り約12,000件
+   - 実行コマンド: `node scripts/migrate-firestore-data.cjs --collection <コレクション名> --skip-existing`
+
 ### 未完了タスク（前回セッションからの引き継ぎ）
 
 1. **新規顧客登録時の追客NO自動採番**
@@ -126,15 +169,19 @@
 
 ## 現在のシステム状態
 
-### バックエンド (Firebase/Algolia)
+### バックエンド (Firebase biz-01 / Algolia)
 
 | サービス | 状態 | データ件数 |
 |---------|------|-----------|
-| Firestore (crm-database-v9) | 正常 | Customers: 10,998件 |
-| Firestore (crm-database-v9) | 正常 | Deals: 0件（未インポート）|
-| Firestore (crm-database-v9) | 正常 | TreeBurialDeals: 2,362件（顧客紐づけ済み）|
-| Firestore (crm-database-v9) | 正常 | BurialPersons: 2,090件（顧客紐づけ済み）|
-| Algolia (customers index) | 正常 | 10,998件 |
+| Firestore (biz-01/default) | 正常 | Customers: 11,063件 |
+| Firestore (biz-01/default) | 正常 | TreeBurialDeals: 3,073件 |
+| Firestore (biz-01/default) | 正常 | BurialPersons: 5,452件 |
+| Firestore (biz-01/default) | 正常 | GeneralSalesDeals: 106件 |
+| Firestore (biz-01/default) | ⏳待機 | Relationships: 未移行（1,122件予定）|
+| Firestore (biz-01/default) | ⏳待機 | DealProducts: 未移行（11,541件予定）|
+| Algolia (customers index) | 正常 | 約11,000件（旧プロジェクトのデータ） |
+
+> **注意**: Algoliaは旧プロジェクトのデータを参照中。Firestoreのドキュメントは同じIDで移行済みのため、検索→詳細遷移は正常動作。
 
 ### フロントエンド (V12)
 
@@ -189,7 +236,88 @@
 
 ---
 
-## 発生した問題と解決策 (2025-12-29)
+## 発生した問題と解決策 (2025-12-29 午後: Firebase移行)
+
+### 問題1: Missing or insufficient permissions エラー
+
+**症状**:
+- biz-01にデプロイ後、全ページでデータ取得に失敗
+- F12コンソールに「FirebaseError: Missing or insufficient permissions」
+
+**原因**:
+- `firestore.rules`に一部のコレクションしか定義されていなかった
+- 不足していたコレクション: TreeBurialDeals, BurialPersons, Masters, GeneralSalesDeals, ConstructionProjects, DealProducts, SearchLists, CustomerSearchLists, PlotTypes, RelationshipTypes, StoneTypes, Branches, Employees, TrackingNoCounter, YanakaLeads
+
+**解決**:
+- 全コレクションのルールを`firestore.rules`に追加
+- `firebase deploy --only firestore:rules --project biz-01`でデプロイ
+
+**再発防止策**:
+- 新しいコレクションを追加する際は必ず`firestore.rules`も更新
+- デプロイ後は必ずF12コンソールで権限エラーがないか確認
+
+### 問題2: auth/unauthorized-domain エラー
+
+**症状**:
+- biz-01にデプロイ後、ログイン時にエラー
+- 「Firebase: Error (auth/unauthorized-domain)」
+
+**原因**:
+- 古いビルド（crm-appsheet-v7の設定）がキャッシュされていた
+- `dist`フォルダに古いJSファイルが残存
+
+**解決**:
+```bash
+Remove-Item -Recurse -Force dist
+npx vite build --mode production
+firebase deploy --only hosting --project biz-01
+```
+
+**再発防止策**:
+- Firebase設定変更後は必ず`dist`フォルダを削除してクリーンビルド
+- シークレットウィンドウでも同じエラーが出る場合はビルドを疑う
+
+### 問題3: サービスアカウントキー作成がブロックされる
+
+**症状**:
+- Firebase Consoleでサービスアカウントキーを作成しようとするとエラー
+- 「組織のポリシーによりブロックされています」
+
+**原因**:
+- 組織ポリシー`iam.disableServiceAccountKeyCreation`が有効
+
+**解決**:
+1. Google Cloud Console → IAMと管理 → 組織のポリシー
+2. プロジェクト`biz-01`を選択
+3. `iam.disableServiceAccountKeyCreation`を検索
+4. 「カスタマイズしたポリシーを管理」→ ルールを追加 → 「許可」に設定
+5. 保存後、Firebase Consoleでキーを作成
+
+**再発防止策**:
+- 組織管理下のFirebaseプロジェクトではこの問題が発生する可能性がある
+- プロジェクトレベルでのポリシーオーバーライドが必要
+
+### 問題4: Firestoreクォータ超過
+
+**症状**:
+- データ移行中に「RESOURCE_EXHAUSTED: Quota exceeded」エラー
+- 一部のコレクションが移行できない
+
+**原因**:
+- Firestoreの1日あたりの書き込みクォータを超過
+
+**解決**:
+- 時間をおいて再試行（太平洋時間深夜にリセット）
+- `--collection <名前>`オプションで個別コレクションを移行
+- `--skip-existing`オプションで既存ドキュメントをスキップ
+
+**再発防止策**:
+- 大量データ移行は複数日に分けて実行
+- バッチサイズを小さくする（500件→300件）
+
+---
+
+## 発生した問題と解決策 (2025-12-29 午前)
 
 ### 問題1: Firebaseインポートパスエラー
 
@@ -431,12 +559,13 @@ cd V12 && npm run build
 
 ## 備考
 
+- **現行URL**: https://biz-01.web.app （2025-12-29移行）
+- **旧URL**: https://crm-appsheet-v7.web.app （非推奨）
 - 「樹木葬」は正式名称「樹木墓」に変更済み
 - 顧客リンクは全て管理番号（trackingNo）ベースに統一
 - 金額表示は全て3桁区切りで統一
-- Firebase Hosting URL: https://crm-appsheet-v7.web.app
 - 関係性データ: 約2,005件が`targetCustomerId=null`（APIでスキップ処理済み）
-- 一般商談（Deals）: 0件（未インポート）、TreeBurialDeals: 2,362件のみ
+- 一般商談（Deals）: 0件（未インポート）
 - trackingNo採番: Countersコレクションでトランザクション管理
 
 ---

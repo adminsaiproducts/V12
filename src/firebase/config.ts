@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,7 +17,9 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-// V9のデータベース (crm-database-v9) に接続
-export const db = getFirestore(app, 'crm-database-v9');
+// デフォルトデータベースに接続
+export const db = getFirestore(app);
+// Firebase Storage
+export const storage = getStorage(app);
 
 export default app;

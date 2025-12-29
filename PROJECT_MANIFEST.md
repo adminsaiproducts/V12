@@ -1,7 +1,7 @@
 # CRM V12 プロジェクトマニフェスト
 
-**バージョン**: 12.0.0
-**最終更新**: 2025-12-29
+**バージョン**: 12.1.0
+**最終更新**: 2025-12-29 (Firebase biz-01移行)
 
 ## プロジェクト概要
 
@@ -32,10 +32,12 @@ V9からの移行版として、以下の改善を実現しています：
 
 | 技術 | 用途 |
 |-----|-----|
-| Firebase Firestore | データベース (crm-database-v9) |
+| Firebase Firestore | データベース (biz-01 プロジェクト / デフォルトDB) |
 | Firebase Authentication | 認証 (Google OAuth) |
-| Firebase Hosting | ホスティング |
+| Firebase Hosting | ホスティング (https://biz-01.web.app) |
 | Algolia | 全文検索 |
+
+> **注意**: 2025-12-29に crm-appsheet-v7 から biz-01 プロジェクトへ移行しました。
 
 ### 開発ツール
 
@@ -114,13 +116,24 @@ V12/
 
 ## Firebase設定
 
-### プロジェクト情報
+### プロジェクト情報（現行: biz-01）
+
+| 項目 | 値 |
+|-----|---|
+| プロジェクトID | **biz-01** |
+| データベースID | **(default)** |
+| リージョン | asia-northeast1 |
+| Hosting URL | https://biz-01.web.app |
+
+### 旧プロジェクト情報（参考: crm-appsheet-v7）
 
 | 項目 | 値 |
 |-----|---|
 | プロジェクトID | crm-appsheet-v7 |
 | データベースID | crm-database-v9 |
 | リージョン | asia-northeast1 |
+
+> **移行経緯**: 会社名変更に耐えるURLにするため、2025-12-29に完全中立な名前の`biz-01`プロジェクトへ移行。
 
 ### コレクション構造
 
@@ -250,16 +263,29 @@ interface RelationshipType {
 
 ### サービスアカウント
 
+**現行 (biz-01)**:
 ```
-C:\Users\satos\OneDrive\○大西\〇新CRMプロジェクト\Githubとの連携リポジトリ宛先\V9\crm-appsheet-v7-4cce8f749b52.json
+H:\共有ドライブ\sai-crm\config\serviceAccount.json          # biz-01用
+H:\共有ドライブ\sai-crm\config\serviceAccount-dest.json     # biz-01用（移行先）
 ```
 
-### 環境変数 (.env)
+**旧プロジェクト (crm-appsheet-v7)**:
+```
+H:\共有ドライブ\sai-crm\config\serviceAccount-v9.json       # 移行元データ読み取り用
+```
+
+### 環境変数 (.env.local)
 
 ```
+# biz-01 プロジェクト設定
 VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=crm-appsheet-v7.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=crm-appsheet-v7
+VITE_FIREBASE_AUTH_DOMAIN=biz-01.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=biz-01
+VITE_FIREBASE_STORAGE_BUCKET=biz-01.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+
+# Algolia設定（共通）
 VITE_ALGOLIA_APP_ID=5PE7L5U694
 VITE_ALGOLIA_SEARCH_KEY=...
 ```
@@ -416,6 +442,41 @@ if (data.linkedCustomerTrackingNo) {
 ```
 
 **教訓**: コレクションごとにフィールド名が異なる可能性があるため、サンプルデータを必ず確認してからスクリプトを作成すること
+
+### 【最重要】Firestoreセキュリティルールに全コレクションを含める
+
+**問題**: 新しいFirebaseプロジェクトにデプロイ後、「Missing or insufficient permissions」エラーが発生
+
+**原因**:
+- `firestore.rules`に一部のコレクションしか定義されていなかった
+- アプリが使用する全コレクションのルールが必要
+
+**必須コレクション一覧**:
+```
+Customers, Deals, Temples, Relationships, Activities, AuditLogs,
+TreeBurialDeals, BurialPersons, GeneralSalesDeals, ConstructionProjects,
+DealProducts, Masters, SearchLists, CustomerSearchLists,
+PlotTypes, RelationshipTypes, StoneTypes, Branches, Employees,
+TrackingNoCounter, YanakaLeads
+```
+
+**再発防止策**:
+- 新機能追加時に新しいコレクションを使う場合は`firestore.rules`も更新
+- デプロイ後にF12コンソールで権限エラーが出たら、まずルールを確認
+
+### Firebaseプロジェクト移行時の注意点
+
+**auth/unauthorized-domain エラー**:
+- 古いビルドがキャッシュされている場合に発生
+- 解決: `dist`フォルダを削除してクリーンビルド
+
+**サービスアカウントキー作成がブロックされる**:
+- 組織ポリシー`iam.disableServiceAccountKeyCreation`が有効な場合
+- 解決: Google Cloud Consoleでプロジェクトレベルでポリシーをオーバーライド
+
+**Firestoreクォータ制限**:
+- 大量データ移行時にクォータ超過エラーが発生
+- 解決: 時間をおいて再試行（太平洋時間深夜にリセット）
 
 ---
 

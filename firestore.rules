@@ -74,5 +74,86 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if false; // 改ざん防止
     }
+
+    // 樹木墓商談コレクション
+    match /TreeBurialDeals/{dealId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 埋葬者コレクション
+    match /BurialPersons/{personId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 一般売上商談コレクション
+    match /GeneralSalesDeals/{dealId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 工事案件コレクション
+    match /ConstructionProjects/{projectId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 商談商品コレクション
+    match /DealProducts/{productId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // マスターデータコレクション
+    match /Masters/{masterId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 検索リストコレクション
+    match /SearchLists/{listId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 顧客検索リストコレクション
+    match /CustomerSearchLists/{listId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 区画タイプマスター
+    match /PlotTypes/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 関係性タイプマスター
+    match /RelationshipTypes/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 石材タイプマスター
+    match /StoneTypes/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 拠点マスター
+    match /Branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 従業員マスター
+    match /Employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 追客番号カウンター
+    match /TrackingNoCounter/{counterId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 谷中霊園リード
+    match /YanakaLeads/{leadId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

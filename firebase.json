@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "crm-appsheet-v7",
+    "site": "biz-01",
     "public": "dist",
     "ignore": [
       "firebase.json",

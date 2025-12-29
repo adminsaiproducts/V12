@@ -1,8 +1,12 @@
 # CRM V12 開発ガイド
 
-**最終更新**: 2025-12-29
+**最終更新**: 2025-12-29 (Firebase biz-01移行後)
 
 このドキュメントは、CRM V12 の開発を再開する際に必要な情報をまとめています。
+
+> **重要**: 2025-12-29にFirebaseプロジェクトを`crm-appsheet-v7`から`biz-01`に移行しました。
+> - 新URL: https://biz-01.web.app
+> - データベース: デフォルトDB（名前付きDBではない）
 
 ---
 
@@ -513,6 +517,91 @@ firebase deploy --only firestore:indexes
 - GENIEE CSVから一般商談をインポートするスクリプトが必要
 - インポート後は`update-customer-deal-flags.cjs`で`hasDeals`フラグを更新
 
+### 3.20 【最重要】Firestoreセキュリティルールに全コレクションを含める
+
+**発生状況**:
+- biz-01プロジェクトにデプロイ後、全ページでデータ取得に失敗
+- F12コンソールに「Missing or insufficient permissions」エラー
+
+**原因**:
+- `firestore.rules`に一部のコレクションしか定義されていなかった
+- アプリが使用する全コレクションのルールが必要
+
+**必須コレクション一覧**:
+```
+Customers, Deals, Temples, Relationships, Activities, AuditLogs,
+TreeBurialDeals, BurialPersons, GeneralSalesDeals, ConstructionProjects,
+DealProducts, Masters, SearchLists, CustomerSearchLists,
+PlotTypes, RelationshipTypes, StoneTypes, Branches, Employees,
+TrackingNoCounter, YanakaLeads
+```
+
+**チェックリスト**:
+- [ ] 新機能で新コレクションを使う場合は`firestore.rules`も更新
+- [ ] デプロイ後はF12コンソールで権限エラーがないか確認
+- [ ] `firebase deploy --only firestore:rules`でルールをデプロイ
+
+### 3.21 【重要】Firebaseプロジェクト切り替え時のクリーンビルド
+
+**発生状況**:
+- Firebase設定を変更後、auth/unauthorized-domainエラーが発生
+- シークレットウィンドウでも同じエラー
+
+**原因**:
+- `dist`フォルダに古いビルド（旧Firebase設定）が残っている
+
+**対応策**:
+```bash
+# PowerShellの場合
+Remove-Item -Recurse -Force dist
+
+# ビルドとデプロイ
+npx vite build --mode production
+firebase deploy --only hosting --project biz-01
+```
+
+**チェックリスト**:
+- [ ] Firebase設定変更後は必ず`dist`フォルダを削除
+- [ ] クリーンビルドしてからデプロイ
+- [ ] エラーが続く場合はブラウザキャッシュもクリア
+
+### 3.22 【重要】組織ポリシーによるサービスアカウントキー作成ブロック
+
+**発生状況**:
+- Firebase Consoleでサービスアカウントキーを作成しようとするとエラー
+- 「組織のポリシーによりブロックされています」
+
+**原因**:
+- 組織ポリシー`iam.disableServiceAccountKeyCreation`が有効
+
+**対応策**:
+1. Google Cloud Console → IAMと管理 → 組織のポリシー
+2. プロジェクトを選択
+3. `iam.disableServiceAccountKeyCreation`を検索
+4. 「カスタマイズしたポリシーを管理」→ ルールを追加 → 「許可」
+5. 保存後、Firebase Consoleでキーを作成
+
+**チェックリスト**:
+- [ ] 組織管理下のFirebaseプロジェクトではこの問題に注意
+- [ ] プロジェクトレベルでのポリシーオーバーライドが必要
+
+### 3.23 【注意】Firestoreクォータ制限
+
+**発生状況**:
+- データ移行中に「RESOURCE_EXHAUSTED: Quota exceeded」エラー
+
+**原因**:
+- Firestoreの1日あたりの書き込みクォータを超過
+
+**対応策**:
+- 時間をおいて再試行（太平洋時間深夜にリセット）
+- `--collection <名前>`オプションで個別コレクションを移行
+- `--skip-existing`オプションで既存ドキュメントをスキップ
+
+**チェックリスト**:
+- [ ] 大量データ移行は複数日に分けて実行
+- [ ] バッチサイズを小さくする（500件→300件）
+
 ### 3.19 【重要】AlgoliaとFirestoreのフィールド名統一
 
 **発生状況**:
@@ -634,19 +723,29 @@ const activeEmployees = employeesMaster?.items
 
 ## 5. Firebase設定詳細
 
-### プロジェクト情報
+### プロジェクト情報（現行: biz-01）
+
+| 項目 | 値 |
+|-----|---|
+| プロジェクトID | **biz-01** |
+| データベースID | **(default)** |
+| リージョン | `asia-northeast1` |
+| Hosting URL | https://biz-01.web.app |
+
+### 旧プロジェクト情報（参考）
 
 | 項目 | 値 |
 |-----|---|
 | プロジェクトID | `crm-appsheet-v7` |
 | データベースID | `crm-database-v9` |
-| リージョン | `asia-northeast1` |
 
 ### サービスアカウント
 
-管理スクリプトで使用:
+管理スクリプトで使用（Googleドライブ上）:
 ```
-C:\Users\satos\OneDrive\○大西\〇新CRMプロジェクト\Githubとの連携リポジトリ宛先\V9\crm-appsheet-v7-4cce8f749b52.json
+H:\共有ドライブ\sai-crm\config\serviceAccount.json          # biz-01用
+H:\共有ドライブ\sai-crm\config\serviceAccount-dest.json     # biz-01用（移行先）
+H:\共有ドライブ\sai-crm\config\serviceAccount-v9.json       # 移行元データ読み取り用
 ```
 
 ### セキュリティルール
@@ -655,6 +754,8 @@ C:\Users\satos\OneDrive\○大西\〇新CRMプロジェクト\Githubとの連携
 ```
 request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 ```
+
+**重要**: 全コレクションのルールが必要。不足するとPermissionエラーになる。
 
 ---
 
@@ -757,7 +858,8 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 
 ### Firebase Console
 
-- https://console.firebase.google.com/project/crm-appsheet-v7
+- **現行**: https://console.firebase.google.com/project/biz-01
+- 旧: https://console.firebase.google.com/project/crm-appsheet-v7
 
 ### Algolia Dashboard
 
@@ -773,4 +875,5 @@ request.auth.token.email.matches('.*@saiproducts\\.co\\.jp')
 | 2025-12-11 | 商談担当者の従業員マスター連携、関係性ページからの遷移機能追加 |
 | 2025-12-14 | 顧客リンク問題修正（trackingNo統一）、寺院別樹木墓集計ページ追加、従業員名空白正規化対応、樹木葬→樹木墓名称変更 |
 | 2025-12-20 | 顧客一覧に拠点・商談アイコン追加、顧客商談フラグ更新スクリプト追加、BurialPersonsの紐づけフィールド差異に関する教訓追加 |
-| 2025-12-29 | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックス・Algoliaフィールド名統一に関する教訓追加 |
+| 2025-12-29 AM | 検索リスト機能追加（フィルター・CSV出力）、Firebase Hostingキャッシュ問題対応、住所フィールド構造・Firestore undefined値・localtunnel不安定・関係性データ品質・Counters採番・Firestoreインデックス・Algoliaフィールド名統一に関する教訓追加 |
+| 2025-12-29 PM | **Firebase biz-01プロジェクトへ移行**、Firestoreセキュリティルール全コレクション追加、auth/unauthorized-domainエラー対応、組織ポリシーオーバーライド、Firestoreクォータ制限に関する教訓追加 |
